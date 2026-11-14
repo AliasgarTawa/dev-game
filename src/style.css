@@ -98,8 +98,9 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: var(--space-7);
-  padding: var(--space-7) var(--page-gutter);
+  gap: clamp(var(--space-5), 5vh, var(--space-7));
+  /* Bottom padding reserves room for the fixed footer audio controls. */
+  padding: var(--space-7) var(--page-gutter) calc(var(--space-8) + var(--space-5));
   max-width: 720px;
   transition:
     opacity 0.6s var(--ease-out),
@@ -119,7 +120,7 @@ body {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: clamp(3.5rem, 10vw, 8rem);
+  font-size: clamp(3.5rem, min(10vw, 14vh), 8rem);
   line-height: 0.88;
   letter-spacing: 0.01em;
   text-transform: uppercase;

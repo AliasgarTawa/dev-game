@@ -1,4 +1,32 @@
-# Desert opening screen
+# Dune Rush
+
+Desert dirt-bike racing game. Vite + Three.js (vanilla JS, no framework).
+
+## Commands
+- `npm run dev` — dev server on http://localhost:3000 (port from `PORT` in `.env`)
+- `npm run build` — production build to `dist/` (verify this passes after changes)
+- `npm run preview` — serve the built `dist/`
+
+## Structure
+- `index.html` — opening page markup (menu, loader, toast)
+- `src/main.js` — entry; boots the 3D scene (falls back to CSS gradient if WebGL fails) and menu
+- `src/scene.js` — desert scene: looping terrain chunks, sky shader, lights, dust, camera framing
+- `src/bike.js` — procedural dirt bike + rider
+- `src/menu.js` — menu actions, keyboard nav, toast
+- `src/audio.js` — shared audio context, music/effects buses, lazy loading, saved mix, Settings dialog and visibility pause
+- `src/audio-effects.js` — engine crossfade/RPM, tire/wind layers, spatial panning and bounded procedural cues
+- `public/audio/` — generated menu music and bike/surface loops; provenance and mix details in `AUDIO.md`
+- `src/style.css` — design tokens + UI styles
+
+## Notes
+- `MESHY_API_KEY` lives in `.env` (gitignored). Never expose it client-side: Vite only exposes `VITE_`-prefixed vars, so keep the Meshy key unprefixed and call Meshy from a server/script.
+- Dependencies are pinned to exact versions.
+- The scene sends normalized speed, boost, throttle, roughness and pan to audio via `onRide`. Keep sound automation capped at 20 Hz; never create audio nodes in the render loop.
+- Audio is static at runtime. No ElevenLabs API key belongs in the app or client bundle.
+
+---
+
+## Desert opening screen
 
 When building or changing the opening/title screen, use the supplied desert frames as the visual source of truth. Read [the desert asset guide](assets/desert/README.md) before choosing images or generating more.
 

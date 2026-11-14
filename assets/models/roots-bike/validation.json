@@ -1,0 +1,12 @@
+{
+  "POSITION": {
+    "same_shape": true,
+    "max_difference": 0.0
+  },
+  "TEXCOORD_0": {
+    "same_shape": true,
+    "max_difference": 0.0
+  },
+  "triangles": 31302,
+  "balance_after": 1940
+}

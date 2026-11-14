@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "transition": {
+    "durationMs": 1040.9999999642387,
+    "prepareMs": 3018.099999964237,
+    "frames": 8,
+    "medianFrameMs": 116.60000000000218,
+    "p95FrameMs": 433.2000000000007
+  },
+  "reducedMotionStatus": "Woodland day bike · rider ready"
+}

@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Desert bike · 3D preview</title>
+<style>body{margin:0;background:#18252a;color:#fff;font:16px system-ui}canvas{display:block}aside{position:absolute;left:24px;top:24px;max-width:320px;padding:20px;background:#132124e8;border:1px solid #ffffff30;border-radius:16px}h1{font-size:24px;margin:0 0 8px}p{color:#c3d2d3;font-size:14px;line-height:1.5}button,a{background:#eff7c8;color:#162524;padding:9px 14px;border:0;border-radius:8px;display:inline-block;text-decoration:none;margin:3px;font:inherit;cursor:pointer}#status{font-size:13px}footer{position:absolute;bottom:18px;left:24px;font-size:13px;color:#ccd}#stage{position:absolute;inset:0 0 0 365px}aside{width:290px;box-sizing:border-box}footer{max-width:300px}@media(max-width:700px){#stage{inset:220px 0 35px}aside{left:12px;top:12px;width:calc(100% - 24px);max-width:none;padding:12px}h1{font-size:20px}p{margin:4px 0}button,a{font-size:13px;padding:7px 11px}footer{left:12px;bottom:8px;max-width:none;font-size:11px}}</style>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script></head><body>
+<div id="stage"></div><aside><a href="./index.html">First-person ride</a><h1>Desert bike</h1><p>Desert scrambler · textured 3D asset<br>Drag to orbit. Scroll to zoom.</p><div><button data-view="front">Front</button><button data-view="side">Side</button><button data-view="back">Back</button></div><button id="spin">Auto rotate</button><a href="./assets/models/desert-bike/desert-bike.glb" download>Download GLB</a><p id="status">Loading model…</p></aside><footer>Static bike mesh · wheels not separated or animated</footer>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const scene=new THREE.Scene();scene.background=new THREE.Color('#18252a');
+const stage=document.querySelector('#stage');const camera=new THREE.PerspectiveCamera(38,stage.clientWidth/stage.clientHeight,.01,100);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(stage.clientWidth,stage.clientHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;stage.appendChild(renderer.domElement);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.autoRotateSpeed=1.4;
+scene.add(new THREE.HemisphereLight(0xffffff,0x687485,3));
+for(const [x,y,z,power]of [[3,5,4,3],[-3,2,-3,2]]){const l=new THREE.DirectionalLight(0xffffff,power);l.position.set(x,y,z);scene.add(l)}
+let distance=3,centerY=1;
+function view(which){const positions={front:[0,.20,1],side:[1,.20,0],back:[0,.20,-1]};const p=positions[which];camera.position.set(p[0]*distance,centerY+p[1]*distance,p[2]*distance);controls.target.set(0,centerY,0);controls.update()}
+new GLTFLoader().load('./assets/models/desert-bike/desert-bike.glb',g=>{const model=g.scene;const box=new THREE.Box3().setFromObject(model);const center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());model.position.sub(center);model.position.y+=size.y/2;scene.add(model);centerY=size.y/2;distance=Math.max(size.x,size.y,size.z)*1.8;view('front');let triangles=0;model.traverse(o=>{if(o.isMesh)triangles+=(o.geometry.index?o.geometry.index.count:o.geometry.attributes.position.count)/3});document.querySelector('#status').textContent=`Ready · ${triangles.toLocaleString()} triangles`;window.modelReady=true;},undefined,e=>{document.querySelector('#status').textContent='Model failed to load';console.error(e)});
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>view(b.dataset.view));document.querySelector('#spin').onclick=()=>{controls.autoRotate=!controls.autoRotate};
+onresize=()=>{camera.aspect=stage.clientWidth/stage.clientHeight;camera.updateProjectionMatrix();renderer.setSize(stage.clientWidth,stage.clientHeight)};
+renderer.setAnimationLoop(()=>{controls.update();renderer.render(scene,camera)});
+</script></body></html>

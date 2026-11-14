@@ -1,0 +1,80 @@
+{
+ "default": "roots-v1",
+ "scenes": [
+  {
+   "id": "worlds",
+   "label": "Three worlds: desert road, root passage day, glowing night (switch while riding)",
+   "json": "./fantasy-worlds.json",
+   "ply": "./fantasy-desert-v4-tile.ply",
+   "sky": "./fantasy-desert-v3-sky",
+   "background": "#000000"
+  },
+  {
+   "id": "desert-endless",
+   "label": "Desert endless road: your loop tile only, repeating forever (no lane)",
+   "json": "./fantasy-desert-endless.json",
+   "ply": "./fantasy-desert-v4-tile.ply",
+   "sky": "./fantasy-desert-v3-sky",
+   "background": "#000000"
+  },
+  {
+   "id": "desert-v4",
+   "label": "Desert road v4: the 126 m lane, then your loop tile forever",
+   "json": "./fantasy-desert-v4.json",
+   "ply": "./fantasy-desert-v4.ply",
+   "sky": "./fantasy-desert-v3-sky",
+   "background": "#000000"
+  },
+  {
+   "id": "desert-v3",
+   "label": "Desert road v3: 126 m (your clip + ElevenLabs continuation), lane narrows after 20 m",
+   "json": "./fantasy-desert-v3.json",
+   "ply": "./fantasy-desert-v3.ply",
+   "sky": "./fantasy-desert-v3-sky",
+   "background": "#000000"
+  },
+  {
+   "id": "desert-v2",
+   "label": "Desert road v2: sky backdrop, cleaner end (your content.mp4)",
+   "json": "./fantasy-desert-v1.json",
+   "ply": "./fantasy-desert-v2.ply",
+   "sky": "./fantasy-desert-sky",
+   "background": "#000000"
+  },
+  {
+   "id": "desert-v1",
+   "label": "Desert road, 1 clip (12 s, your content.mp4)",
+   "json": "./fantasy-desert-v1.json",
+   "ply": "./fantasy-desert-v1.ply",
+   "background": "#000000"
+  },
+  {
+   "id": "roots-v1",
+   "label": "Giant-root passage, 1 clip (15 s)",
+   "json": "./fantasy-roots-v1.json",
+   "ply": "./fantasy-roots-v2b.ply",
+   "background": "#3a3a30"
+  },
+  {
+   "id": "canyon-v1",
+   "label": "Crystal canyon, 1 clip (15 s)",
+   "json": "./fantasy-canyon-v1.json",
+   "ply": "./fantasy-canyon-v1.ply",
+   "background": "#c9d6e0"
+  },
+  {
+   "id": "lantern-joinn",
+   "label": "Lantern village, 3 clips (45 s, through the gate)",
+   "json": "./fantasy-lantern-joinn.json",
+   "ply": "./fantasy-lantern-joinn.ply",
+   "background": "#c3cdd3"
+  },
+  {
+   "id": "lantern-v1",
+   "label": "Lantern village, 1 clip (15 s)",
+   "json": "./fantasy-lantern-v1.json",
+   "ply": "./fantasy-lantern-v1.ply",
+   "background": "#c3cdd3"
+  }
+ ]
+}

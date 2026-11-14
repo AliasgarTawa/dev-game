@@ -1,0 +1,10 @@
+{
+  "input_task_id": "01a1dbcd-0c54-7024-bcd8-394fe2ee37aa",
+  "ai_model": "meshy-7",
+  "enable_original_uv": true,
+  "enable_pbr": true,
+  "texture_resolution": "4k",
+  "target_formats": [
+    "glb"
+  ]
+}

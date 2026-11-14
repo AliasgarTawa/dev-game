@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en"><head><link rel="icon" href="data:,"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Desert rider · over the shoulder</title><base href="/">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#151817;color:#f8f6ef;font:14px system-ui}canvas{display:block;touch-action:none}
+#panel{z-index:3;position:absolute;top:20px;left:20px;padding:18px;border:1px solid #ffffff26;border-radius:16px;background:#14201eeb;max-width:380px}
+h1{font-size:20px;margin:2px 0 12px}button{margin:0 6px 6px 0;padding:9px 12px;border-radius:9px;border:1px solid #ffffff33;background:#24352f;color:inherit;font:inherit;cursor:pointer}
+button.active{background:#d9ecc0;color:#14201e}#status{color:#cfe3b4;margin:6px 0}#warn{display:none;color:#ffe9c2;margin-top:6px}p{margin:6px 0;color:#c9d3cc}
+#hud{color:#e8efe2;font-variant-numeric:tabular-nums}
+#panel{max-width:340px;padding:12px;top:12px;left:12px;font-size:12px}#panel p:not(#bikeStatus){display:none}#panel h1{margin-bottom:6px}#panel details{margin-bottom:8px}#panel a{color:#e5d29e;display:block;margin:8px 0}#panel button{font-size:12px;padding:7px 10px}#hud{font-size:11px}#free,#loop{display:none!important}@media(max-width:650px){#panel{max-width:calc(100vw - 24px)}#status{max-width:310px;font-size:10px}}#help{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#14201edd;padding:9px 14px;border-radius:10px;z-index:4;white-space:nowrap;font-size:12px}</style>
+<script type="importmap">{"imports":{"three":"/dev-game/vendor/three.module.js","three/addons/":"/dev-game/vendor/addons/","@sparkjsdev/spark":"/vendor/spark.module.js"}}</script></head>
+<body><div id="panel"><h1 id="title">Fantasy road</h1>
+<details><summary>Route & look</summary><div id="scenes"></div>
+<div id="styles" style="display:none"></div></details><p id="bikeStatus">Loading desert bike…</p><a id="bikeInspector" href="/dev-game/bike-preview.html">Inspect bike in 3D</a>
+<div><button id="ride" class="active">Ride behind mascot</button><button id="free">Free fly</button><button id="play">Start riding</button><button id="loop" style="display:none">Endless loop: on</button></div>
+<div id="status">Loading…</div>
+<div id="hud"></div>
+<p><b>Ride:</b> <b>W / S</b> forward / back, <b>A / D</b> across the lane, <b>Q / E</b> lower / higher, drag to look. Movement stays inside the corridor where the review renders held.</p>
+<p id="freehelp"><b>Free fly</b> lifts the limits, to inspect where the splat breaks.</p>
+<div id="warn"></div></div>
+<div id="help">W / S ride · A / D steer · drag to look</div><script>addEventListener("error",e=>{document.getElementById("status").textContent="Error: "+e.message});addEventListener("unhandledrejection",e=>{document.getElementById("status").textContent="Error: "+e.reason});</script><script type="module">
+// Fantasy road sections (2026-11-14): one splat per generated clip, each from runs/fantasy-roads-2026-11-14.
+// Drawn with the filter matching Spirula's standard 3DGS training: 0.3 px², no opacity compensation. ?aa=0 for Spark's default.
+// fantasy-scenes.json lists the scenes; each scene's JSON (from lane_review.py) holds the filmed path, the up axis, scene units per
+// metre (from an assumed 1.6 m camera height) and the corridor the review supports: half-width, height range, turn limit, ride-on past the end.
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {SparkRenderer,SplatMesh,dyno} from '@sparkjsdev/spark';
+const $=id=>document.getElementById(id),status=$('status');
+window.addEventListener('unhandledrejection',e=>status.textContent='Load error: '+e.reason);
+const params=new URLSearchParams(location.search);
+const absolutize=o=>JSON.parse(JSON.stringify(o),(k,v)=>typeof v==='string'&&v.startsWith('./')?new URL(v,location.origin+'/').href:v);
+const list=absolutize(await (await fetch('/fantasy-scenes.json',{cache:'no-store'})).json());
+const sceneId=list.scenes.some(s=>s.id===params.get('scene'))?params.get('scene'):'desert-v4';
+const entry=list.scenes.find(s=>s.id===sceneId);
+for(const s of list.scenes){const b=document.createElement('button');b.textContent=s.label;if(s.id===sceneId)b.classList.add('active');
+ b.onclick=()=>{const q=new URLSearchParams(location.search);q.set('scene',s.id);location.search=q.toString();};$('scenes').appendChild(b);}
+$('title').textContent=sceneId==='roots-v1'?'Woodland rider':'Desert rider';
+const cfg=absolutize(await (await fetch(entry.json,{cache:'no-store'})).json());
+const C=cfg.corridor;                                        // {half_width_m, height_m:[lo,hi], yaw_deg, ride_on_m}
+const scene=new THREE.Scene();scene.background=new THREE.Color(entry.background||'#b9c6cf');   // loop mode may set its own (below); ?bg=rrggbb for tests
+const vfov=2*Math.atan(cfg.height/2/cfg.focal)*180/Math.PI;
+const camera=new THREE.PerspectiveCamera(vfov,innerWidth/innerHeight,(+params.get('near')||cfg.near_m||.05)*cfg.units_per_metre,500);   // near plane 5 cm unless the scene or ?near= (metres) says otherwise: scene units vary a lot between solves
+const renderer=new THREE.WebGLRenderer({antialias:false});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);document.body.prepend(renderer.domElement);
+const matched=params.get('aa')!=='0';
+const maxPx=+params.get('maxpx')||cfg.max_pixel_radius||512;    // cap on a splat's on-screen radius (Spark default 512 px)
+const spark=new SparkRenderer({renderer,enableLod:false,preBlurAmount:matched?.3:0,blurAmount:matched?0:.3,maxPixelRadius:maxPx});scene.add(spark);
+// The bike and the rigged mascot are rendered in a separate cockpit pass so splat transparency never paints over them.
+// js/cockpit.js loads the cleaned, mount-space GLBs (tools/blender/clean_bike.py, build_rider.py) and owns the chase camera.
+import {createCockpit} from '/dev-game/js/cockpit.js';
+const rootsMode=sceneId==='roots-v1';
+const cockpit=createCockpit(renderer,{variant:rootsMode?'roots':'desert',night:params.get('style')==='night'?1:0,onStatus:()=>{$('bikeStatus').textContent=window.riderReady&&window.bikeReady?'Over-the-shoulder view · rider ready':'Loading bike and rider…';}});
+const bikeReadyPromise=cockpit.bikeReady;function setBikeLook(v){cockpit.setLook(v);}
+cockpit.ready.catch(e=>{$('bikeStatus').textContent='Bike or rider could not load';console.error(e)});
+function renderCockpit(dt=1/60){const steer=(keys.has('d')?1:0)-(keys.has('a')?1:0);
+ cockpit.update(dt,steer,{riding:playing!==null||keys.has('w')||keys.has('s'),reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches});cockpit.render(camera.aspect);}
+// Endless loop (scenes whose JSON has "loop"; ?loop=0 or the Loop button turns it off): copies of one cropped period of the
+// passage (make_loop_tile.py) are laid end to end, T apart along the filmed direction, cross-fading over the overlap. The camera
+// is moved back by T when it passes the end of the period (forward by T when it backs past the start), so it never leaves the
+// middle copies and the passage never ends. Ride rides the first |T| of the filmed path and wraps, with its lane, height and turn
+// limits unchanged. Free fly stays inside the passage (loop.free_left_m / free_right_m per loop.free_bin_m along, loop.free_height_m\n// above the road); ?bound=0 lifts it.
+const LOOP=params.get('loop')==='0'?null:cfg.loop||null;
+// Endless tail (scene JSON "tail"; ?tail=0 turns it off): past the end of the filmed path the ride carries on straight along
+// tail.axis, and copies of one repeating road tile (tail.ply: already cropped to its window and placed as copy 0, in this scene's
+// units) are laid every tail.period_m metres. Three copies follow the camera (the one it is in and two ahead; the ride never looks back),
+// so the road never ends. The lane splat should be cut where copy 0 starts (cut_lane.py). Past tail.window_start_m the lane
+// and turn limits switch to tail.lane_left_m / lane_right_m / yaw_deg.
+const TAIL=LOOP||params.get('tail')==='0'?null:cfg.tail||null;
+const TA=TAIL?new THREE.Vector3(...TAIL.axis).normalize():null,TO=TAIL?new THREE.Vector3(...TAIL.origin):null;
+if(LOOP&&LOOP.background)scene.background.set(LOOP.background);if(/^[0-9a-f]{6}$/i.test(params.get('bg')||''))scene.background.set('#'+params.get('bg'));
+const P0=new THREE.Vector3(...cfg.path[0]);
+const T=LOOP&&LOOP.period?new THREE.Vector3(...LOOP.period):new THREE.Vector3(...cfg.path[cfg.path.length-1]).sub(P0),TL=T.length(),Tu=T.clone().normalize();
+const up=new THREE.Vector3(...cfg.up).normalize();camera.up.copy(up);
+// Sky backdrop (scene entry "sky": "./name" → name.jpg + name.json from make_sky): splats trained with the sky masked out hold
+// no sky, so it is drawn here at infinity on a sphere that follows the camera. ?sky=0 turns it off for tests.
+const SKY=params.get('sky')==='0'?null:(entry.sky||cfg.sky||null);
+if(SKY){const ax=await (await fetch(SKY+'.json')).json();const tex=await new THREE.TextureLoader().loadAsync(SKY+'.jpg');tex.colorSpace=THREE.SRGBColorSpace;
+ const dome=new THREE.Mesh(new THREE.SphereGeometry(100,64,32),new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide,depthWrite:false,depthTest:false,toneMapped:false}));
+ dome.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(...ax.forward),new THREE.Vector3(...ax.up),new THREE.Vector3(...ax.side)));
+ dome.renderOrder=-10;dome.frustumCulled=false;dome.onBeforeRender=(r,s,cam)=>{dome.position.copy(cam.position);dome.updateMatrixWorld();};scene.add(dome);}
+const upm=cfg.units_per_metre,eye=cfg.eye_height_m;
+const flat=v=>v.clone().addScaledVector(up,-v.dot(up)).normalize();
+// A lightly smoothed copy of the filmed path and of the filmed cameras' view directions (pitch kept), so riding does not inherit
+// the generated camera's small wobbles but still looks where the video looked: away from those directions the splat breaks.
+const raw=cfg.path.map(p=>new THREE.Vector3(...p)),N=raw.length,K=2;
+const smooth=(arr,i)=>{const s=new THREE.Vector3();let n=0;for(let j=Math.max(0,i-K);j<=Math.min(N-1,i+K);j++){s.add(arr[j]);n++;}return s.multiplyScalar(1/n);};
+const path=raw.map((_,i)=>smooth(raw,i));
+const rawF=cfg.forwards.map(f=>new THREE.Vector3(...f).normalize());
+const fwds=rawF.map((_,i)=>smooth(rawF,i).normalize());
+const step=cfg.path_length/N;
+const endM=C.ride_on_m||0;
+// Loop period in frames: the (fractional) frame whose distance along the filmed direction from frame 0 reaches |T|.
+let W=N-1;if(LOOP){const along=path.map(p=>p.clone().sub(path[0]).dot(Tu));for(let i=1;i<N;i++)if(along[i]>=TL){W=i-1+(TL-along[i-1])/(along[i]-along[i-1]);break;}}
+const BLEND=10;                                              // loop: over the last BLEND frames, ease position and heading into frame 0 + T
+const at=s=>{const i=Math.min(N-2,Math.max(0,Math.floor(s))),a=s-i;return {p:path[i].clone().lerp(path[i+1],a),f:fwds[i].clone().lerp(fwds[i+1],a)};};
+function frame(s){                                          // s in frames, may run past the last frame by endM
+ const last=N-1;
+ if(LOOP){s=((s%W)+W)%W;const {p,f}=at(s);
+  const b=(s-(W-BLEND))/BLEND;if(b>0){const e=b*b*(3-2*b);           // target: the next copy's first frame, approached along its heading
+   p.lerp(path[0].clone().add(T).addScaledVector(fwds[0],(s-W)*step),e);f.lerp(fwds[0],e);}
+  return {p,f:f.normalize()};}
+ if(s<=last){const i=Math.max(0,Math.floor(s)),a=s-i,j=Math.min(last,i+1);return {p:path[i].clone().lerp(path[j],a),f:fwds[i].clone().lerp(fwds[j],a).normalize()};}
+ if(TAIL){const d=(s-last)*step,e=Math.min(1,d/(2*upm));         // straight on along the tile axis, level, easing out of the filmed heading
+  const p=path[last].clone().lerp(TO,e).addScaledVector(TA,d);return {p,f:fwds[last].clone().lerp(TA,Math.min(1,d/(6*upm))).normalize()};}
+ const f=fwds[last].clone();return {p:path[last].clone().addScaledVector(f,(s-last)*step),f};}
+const sMax=LOOP||TAIL?Infinity:N-1+endM*upm/step,sMin=LOOP?-Infinity:0;
+const RIGHT=new THREE.Vector3().crossVectors(Tu,up).normalize();
+const BOUND=LOOP&&LOOP.free_left_m&&params.get('bound')!=='0'?{h:LOOP.free_height_m||[1,3],at:t=>{const i=Math.max(0,Math.min(LOOP.free_left_m.length-1,Math.floor(t/upm/LOOP.free_bin_m)));return [LOOP.free_left_m[i],LOOP.free_right_m[i]];}}:null;
+const wrapS=fs=>LOOP?((fs%W)+W)%W:fs;
+// Per-frame lane limits (metres to the left / right), when the scene JSON has them; otherwise one half-width everywhere.
+const inTail=fs=>TAIL&&fs>N-1+TAIL.window_start_m*upm/step;
+const laneAt=(arr,fs)=>{if(inTail(fs)&&arr&&(arr===C.lane_left_m||arr===C.lane_right_m||arr===C.yaw_limit_deg))return arr===C.lane_left_m?TAIL.lane_left_m:arr===C.lane_right_m?TAIL.lane_right_m:TAIL.yaw_deg;
+ if(!arr)return C.half_width_m;const i=Math.max(0,Math.min(arr.length-1,Math.round(wrapS(fs))));return arr[i];};
+let mode='ride',s=0,x=0,h=eye,yaw=0,pitch=0,playing=null;
+// Turn limit: one value (yaw_deg), or per frame (yaw_limit_deg) where some stretches only hold up looking ahead.
+const yawLim=fs=>C.yaw_limit_deg?laneAt(C.yaw_limit_deg,fs):C.yaw_deg;
+function applyRide(){if(mode==='ride'){const L=yawLim(s);yaw=Math.max(-L,Math.min(L,yaw));x=Math.max(-laneAt(C.lane_left_m,s),Math.min(laneAt(C.lane_right_m,s),x));}
+ const {p,f}=frame(s),r=new THREE.Vector3().crossVectors(f,up).normalize();
+ camera.position.copy(p).addScaledVector(r,x*upm).addScaledVector(up,(h-eye)*upm);
+ const d=f.clone().applyAxisAngle(up,-yaw*Math.PI/180);const r2=new THREE.Vector3().crossVectors(d,up).normalize();d.applyAxisAngle(r2,-pitch*Math.PI/180);
+ camera.up.copy(up);camera.lookAt(camera.position.clone().add(d));camera.updateMatrixWorld();}
+applyRide();
+// ?ply=<file in this folder> swaps the splat for A/B checks (for example a retrain); with the loop on it replaces the tile.
+const plyOverride=(params.get('ply')||'').match(/^[\w.-]+\.(ply|spz)$/)?params.get('ply'):null;
+// Styles (scenes whose JSON has "styles"; the first is the filmed look): each style is its own splat trained at the same cameras
+// and scene units, so switching keeps the camera exactly where it is. ?style=<id> opens on one.
+const STYLES=plyOverride?null:cfg.styles||null;
+let styleId=STYLES?(STYLES.some(t=>t.id===params.get('style'))?params.get('style'):STYLES[0].id):null;
+const baseBg=scene.background.clone();
+const styleOf=id=>STYLES.find(t=>t.id===id);
+const styleUrl=st=>LOOP?st.tile_ply:st.ply;
+const plyUrl=plyOverride||(STYLES?styleUrl(styleOf(styleId)):(LOOP?LOOP.tile_ply:entry.ply));
+const copyList=params.get('copies')?params.get('copies').split(',').map(Number):LOOP?.copies||[-1,0,1,2];   // ?copies=-1,0,1 for tests
+const EXT=params.has('ext')?params.get('ext')!=='0':!!cfg.ext_splats;   // full-precision (float32) centres: open scenes with far rocks get holes at Spark's default half precision
+async function makeSet(url,visible){                         // one splat, plus its loop copies sharing the same packed data
+ const m=new SplatMesh({url,...(EXT?{extSplats:true}:{}),onProgress:e=>{if(e.total&&visible)status.textContent='Loading · '+Math.round(e.loaded/e.total*100)+'%';}});   // a hidden preload stays quiet
+ m.visible=visible;scene.add(m);await m.initialized;const set=[m];
+ if(LOOP){for(const k of copyList){if(k===0)continue;const c=new SplatMesh(EXT?{extSplats:m.extSplats}:{packedSplats:m.packedSplats});c.visible=visible;c.position.copy(T).multiplyScalar(k);scene.add(c);set.push(c);}}
+ return set;}
+const sets={};const first=await makeSet(plyUrl,true);if(STYLES)sets[styleId]=first;
+const mesh=first[0],copies=first;
+if(STYLES&&styleOf(styleId).background)scene.background.set(styleOf(styleId).background);
+const readyText=()=>entry.label+(STYLES?' · '+styleOf(styleId).label:'')+' · '+((()=>{const m=STYLES?sets[styleId][0]:mesh;return m.packedSplats?.numSplats||m.extSplats?.numSplats||cfg.gaussians||0})()).toLocaleString()+' splats'+(LOOP?' × '+copies.length+' copies, endless loop':'')+(plyOverride?' · '+plyOverride:'')+' · ready';
+const tailMeshes=[];
+if(TAIL){status.textContent='Loading the endless road tile…';
+ const t0=new SplatMesh({url:TAIL.ply,...(EXT?{extSplats:true}:{})});scene.add(t0);await t0.initialized;tailMeshes.push(t0);
+ for(let k=1;k<3;k++){const c=new SplatMesh(EXT?{extSplats:t0.extSplats}:{packedSplats:t0.packedSplats});scene.add(c);tailMeshes.push(c);}}
+const TT=TAIL?TA.clone().multiplyScalar(TAIL.period_m*upm):null;
+function updateTail(){if(!TAIL)return;                       // copies k0 .. k0+2 from the camera on; none before copy 0
+ const a=camera.position.clone().sub(TO).dot(TA)/upm-TAIL.window_start_m,k0=Math.floor(a/TAIL.period_m);
+ tailMeshes.forEach((m,i)=>{const k=k0+i;m.visible=k>=0;m.position.copy(TT).multiplyScalar(Math.max(0,k));});
+ mesh.visible=a<60;}                                         // the lane is behind the camera after 60 m of tile: stop drawing it
+status.textContent=readyText()+(TAIL?' · endless road: '+(tailMeshes[0].packedSplats?.numSplats||tailMeshes[0].extSplats?.numSplats||0).toLocaleString()+' splats per tile × '+tailMeshes.length:'');
+// Style switch: a live rainfall reveal in 3D. Both looks are drawn together for the switch; a per-splat shader (a Spark world
+// modifier) fades the new look in and the old one out, column by column and top to bottom with a random stagger, so the new look
+// falls into place. Rendering and movement carry on throughout (nothing is frozen). The other look loads in the background after
+// the first one, so a switch starts at once. ?revealms= sets the duration (default 1000 ms).
+const REVEAL_MS=Math.max(200,+params.get('revealms')||1000);
+const streaks=document.createElement('canvas');streaks.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:1;display:none;pointer-events:none';
+document.body.append(streaks);const sctx=streaks.getContext('2d');
+function random01(n){const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);}
+function drawStreaks(p){const w=streaks.width=innerWidth,h=streaks.height=innerHeight;sctx.clearRect(0,0,w,h);
+ const envelope=Math.min(1,.4+p*8)*Math.min(1,(1-p)*6);sctx.lineCap='round';
+ for(let i=0;i<90;i++){const depth=.35+random01(i+450)*.65,x=random01(i+700)*w;const y=((p*(1.5+depth)+random01(i+950))%1)*(h+120)-60;const len=(12+depth*30)*h/900;
+  sctx.strokeStyle=i%4===0?`rgba(255,224,154,${envelope*.5*depth})`:`rgba(190,232,244,${envelope*.6*depth})`;
+  sctx.lineWidth=.6+depth*1.3;sctx.beginPath();sctx.moveTo(x,y-len);sctx.lineTo(x-1.5,y);sctx.stroke();}}
+const revealP=dyno.dynoFloat(0),revealUp=dyno.dynoVec3(up.clone()),revealBase=dyno.dynoFloat(0),revealSpan=dyno.dynoFloat(1),revealCell=dyno.dynoFloat(.15*upm);
+{const b=P0.dot(up)-eye*upm;revealBase.value=b;revealSpan.value=4*upm;}   // the road (0) to 4 m above it
+function revealModifier(d){                        // d: the set's direction uniform, +1 incoming (or idle at p = 1), -1 outgoing
+ return dyno.dynoBlock({gsplat:dyno.Gsplat},{gsplat:dyno.Gsplat},({gsplat})=>{
+  const m=new dyno.Dyno({inTypes:{gsplat:dyno.Gsplat,p:'float',dir:'float',up:'vec3',base:'float',span:'float',cell:'float'},outTypes:{gsplat:dyno.Gsplat},
+   statements:({inputs:i,outputs:o})=>dyno.unindentLines(`
+    ${o.gsplat} = ${i.gsplat};
+    vec3 c = ${i.gsplat}.center;
+    float h = clamp((dot(c, ${i.up}) - ${i.base}) / ${i.span}, 0.0, 1.0);
+    vec3 flatc = c - dot(c, ${i.up}) * ${i.up};
+    vec2 col = floor(vec2(flatc.x + flatc.z, flatc.y - flatc.z) / ${i.cell});
+    float colDelay = fract(sin(dot(col, vec2(12.9898, 78.233))) * 43758.5453);
+    float jitter = fract(sin(float(${i.gsplat}.index) * 0.1031) * 43758.5453);
+    float start = 0.30 * colDelay + 0.40 * (1.0 - h) + 0.05 * jitter;
+    float r = smoothstep(start, start + 0.22, ${i.p});
+    float keep = ${i.dir} > 0.0 ? r : 1.0 - r;
+    ${o.gsplat}.rgba.a *= keep;
+    if (${i.dir} > 0.0) {
+      ${o.gsplat}.scales *= mix(0.35, 1.0, r);
+      ${o.gsplat}.rgba.rgb += vec3(0.35, 0.75, 1.0) * (4.0 * r * (1.0 - r)) * 0.55;
+    }
+   `)});
+  return {gsplat:m.apply({gsplat,p:revealP,dir:d,up:revealUp,base:revealBase,span:revealSpan,cell:revealCell}).gsplat};});}
+let transition=null,busy=false;
+revealP.value=1;const setDir={};   // idle: p = 1 and direction +1 make the shader a no-op
+function attachReveal(id,set){setDir[id]=dyno.dynoFloat(1);for(const m of set){m.worldModifier=revealModifier(setDir[id]);m.updateGenerator();}}   // once per set, so a switch compiles nothing
+if(STYLES)attachReveal(styleId,sets[styleId]);
+function styleButtons(){for(const t of STYLES){const b=$('style-'+t.id);b.classList.toggle('active',t.id===styleId);b.disabled=busy;}}
+const synced=()=>spark.display&&spark.display.mappingVersion===spark.latestMappingVersion;
+async function chooseStyle(id,animated=true){
+ if(!STYLES||busy||id===styleId)return;busy=true;styleButtons();
+ const st=styleOf(id),from=styleId;
+ try{
+  if(rootsMode && !await bikeReadyPromise)throw new Error('Bike variants must load before changing looks');
+  if(!sets[id]){status.textContent='Loading '+st.label+'…';sets[id]=loading[id]?await loading[id]:await makeSet(styleUrl(st),false);}
+  const go=animated&&!matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!go){for(const [k,set] of Object.entries(sets))for(const m of set)m.visible=k===id;scene.background.copy(baseBg);if(st.background)scene.background.set(st.background);styleId=id;finishStyle();return;}
+  if(!setDir[id])attachReveal(id,sets[id]);if(!setDir[from])attachReveal(from,sets[from]);
+  setDir[from].value=-1;setDir[id].value=1;revealP.value=0;for(const m of [...sets[from],...sets[id]])m.updateVersion();
+  streaks.style.display='block';status.textContent='Rainfall reveal…';let wait=true;const tw=performance.now();
+  (function rain(){if(!wait)return;drawStreaks(Math.min(.12,(performance.now()-tw)/4000));requestAnimationFrame(rain);})();   // streaks start at the click
+  const mv0=spark.latestMappingVersion;for(const m of sets[id])m.visible=true;
+  const t0=performance.now();   // wait (still rendering and moving) until Spark has sorted the new splats in; they are invisible at p = 0
+  while(!(spark.latestMappingVersion!==mv0&&synced())&&performance.now()-t0<3000)await new Promise(r=>requestAnimationFrame(r));
+  wait=false;
+  transition={from,to:id,start:performance.now(),duration:REVEAL_MS,bg0:scene.background.clone(),bg1:(st.background?new THREE.Color(st.background):baseBg.clone()),prepareMs:performance.now()-t0,deltas:[],previous:null};
+ }catch(e){revealP.value=1;if(setDir[from])setDir[from].value=1;if(sets[id])for(const m of sets[id])m.visible=false;finishStyle();status.textContent='Could not load style: '+e.message;}}
+function stepReveal(now){const t=transition,p=Math.min(1,Math.max(0,(now-t.start)/t.duration));
+ if(t.previous!==null)t.deltas.push(now-t.previous);t.previous=now;
+ revealP.value=p;for(const m of [...sets[t.from],...sets[t.to]])m.updateVersion();
+ scene.background.copy(t.bg0).lerp(t.bg1,Math.min(1,p*1.4));drawStreaks(p);
+ setBikeLook(THREE.MathUtils.lerp(t.from==='night'?1:0,t.to==='night'?1:0,p));
+ if(p===1){for(const m of sets[t.from])m.visible=false;setDir[t.from].value=1;styleId=t.to;
+  const s2=t.deltas.slice().sort((a,b)=>a-b);window.__lastReveal={durationMs:now-t.start,prepareMs:t.prepareMs,frames:t.deltas.length+1,medianFrameMs:s2[Math.floor(s2.length*.5)]||0,p95FrameMs:s2[Math.floor(s2.length*.95)]||0};
+  finishStyle();}}
+function finishStyle(){setBikeLook(styleId==='night'?1:0);transition=null;streaks.style.display='none';busy=false;styleButtons();status.textContent=readyText();
+ const q=new URLSearchParams(location.search);if(styleId===STYLES[0].id)q.delete('style');else q.set('style',styleId);history.replaceState(null,'','?'+q.toString());}
+const loading={};
+if(STYLES){const box=$('styles');box.style.display='';box.innerHTML='<b style="margin-right:6px">Look:</b>';
+ for(const t of STYLES){const b=document.createElement('button');b.id='style-'+t.id;b.textContent=t.label;b.onclick=()=>chooseStyle(t.id);box.appendChild(b);}styleButtons();
+ for(const t of STYLES)if(t.id!==styleId)loading[t.id]=makeSet(styleUrl(t),false).then(s=>{sets[t.id]=s;attachReveal(t.id,s);return s;});}   // preload the other look, hidden
+window.chooseStyle=chooseStyle;
+const keys=new Set();let drag=false,lastX=0,lastY=0;
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();if('wasdqe'.includes(k)&&k.length===1){keys.add(k);playing=null;e.preventDefault();}});
+addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>{keys.clear();drag=false;});
+renderer.domElement.addEventListener('pointerdown',e=>{drag=true;lastX=e.clientX;lastY=e.clientY;playing=null;renderer.domElement.setPointerCapture(e.pointerId);});
+renderer.domElement.addEventListener('pointerup',()=>drag=false);
+renderer.domElement.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;
+ if(mode==='ride'){yaw=Math.max(-yawLim(s),Math.min(yawLim(s),yaw+dx*.2));pitch=Math.max(-20,Math.min(25,pitch+dy*.2));applyRide();return;}
+ const fwd=new THREE.Vector3();camera.getWorldDirection(fwd);const right=new THREE.Vector3().crossVectors(fwd,up).normalize();
+ fwd.applyAxisAngle(up,-dx*.0035);const pitched=fwd.clone().applyAxisAngle(right,-dy*.0035);if(Math.abs(pitched.dot(up))<.97)fwd.copy(pitched);
+ camera.up.copy(up);camera.lookAt(camera.position.clone().add(fwd));});
+function setMode(m){mode=m;$('ride').classList.toggle('active',m==='ride');$('free').classList.toggle('active',m==='free');if(m==='ride')applyRide();}
+$('ride').onclick=()=>setMode('ride');$('free').onclick=()=>setMode('free');
+if(cfg.loop){const b=$('loop');b.style.display='';b.textContent='Endless loop: '+(LOOP?'on':'off');b.classList.toggle('active',!!LOOP);
+ b.onclick=()=>{const q=new URLSearchParams(location.search);if(LOOP)q.set('loop','0');else q.delete('loop');location.search=q.toString();};
+ if(LOOP)$('freehelp').innerHTML='<b>Free fly</b> goes anywhere inside the passage, forever: the passage repeats every '+(TL/upm).toFixed(0)+' m. <b>Endless loop: off</b> shows the clip as filmed, with free fly unlimited.';}
+$('play').onclick=()=>{if(playing!==null){playing=null;$('play').textContent='Start riding';return;}setMode('ride');x=0;h=eye;yaw=0;pitch=0;playing=performance.now();$('play').textContent='Pause ride';};
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+let previous=performance.now(),fpsN=0,fpsT=performance.now();
+function offPath(){let best=Infinity;for(const p of path)best=Math.min(best,p.distanceTo(camera.position));return best/upm;}
+let __fakeNow=null,__dt=1/60;const __loop=now=>{const dt=Math.min(.05,(now-previous)/1000);previous=now;__dt=dt;
+ if(transition)stepReveal(now);   // a style switch in progress: both looks are drawn, movement continues
+ fpsN++;if(now-fpsT>1000){window.__fps=Math.round(fpsN*1000/(now-fpsT));fpsN=0;fpsT=now;}
+ if(playing!==null){s=(now-playing)/1000*24/ (cfg.frame_stride||3);if(LOOP)s=wrapS(s);else if(s>=N-1){s=N-1;playing=null;}applyRide();}
+ else if(keys.size&&mode==='ride'){const v=3*dt;                            // metres per second across / up; forward at about the filmed speed x4
+  if(keys.has('w'))s=Math.min(sMax,s+dt*8*24/(cfg.frame_stride||3)/2);if(keys.has('s'))s=Math.max(sMin,s-dt*8*24/(cfg.frame_stride||3)/2);if(LOOP)s=wrapS(s);
+  if(keys.has('d'))x+=v;if(keys.has('a'))x-=v;x=Math.max(-laneAt(C.lane_left_m,s),Math.min(laneAt(C.lane_right_m,s),x));
+  if(keys.has('e'))h=Math.min(C.height_m[1],h+v*.5);if(keys.has('q'))h=Math.max(C.height_m[0],h-v*.5);applyRide();}
+ else if(keys.size){const fwd=new THREE.Vector3();camera.getWorldDirection(fwd);const right=new THREE.Vector3().crossVectors(fwd,up).normalize();const speed=4*upm*dt;
+  if(keys.has('w'))camera.position.addScaledVector(fwd,speed);if(keys.has('s'))camera.position.addScaledVector(fwd,-speed);
+  if(keys.has('d'))camera.position.addScaledVector(right,speed);if(keys.has('a'))camera.position.addScaledVector(right,-speed);
+  if(keys.has('e'))camera.position.addScaledVector(up,speed);if(keys.has('q'))camera.position.addScaledVector(up,-speed);}
+ if(LOOP&&mode==='free'){const t=camera.position.clone().sub(P0).dot(Tu);   // keep the camera inside the first period
+  if(t>=TL)camera.position.sub(T);else if(t<0)camera.position.add(T);
+  if(BOUND){const rel=camera.position.clone().sub(P0),side=rel.dot(RIGHT)/upm,hgt=rel.dot(up)/upm+eye;     // and inside the passage
+   const [bl,br]=BOUND.at(camera.position.clone().sub(P0).dot(Tu)),cs=Math.max(-bl,Math.min(br,side)),ch=Math.max(BOUND.h[0],Math.min(BOUND.h[1],hgt));
+   camera.position.addScaledVector(RIGHT,(cs-side)*upm).addScaledVector(up,(ch-hgt)*upm);}}
+ updateTail();
+ $('hud').textContent=mode==='ride'&&LOOP?`endless loop · ${(s*step/upm).toFixed(1)} of ${(TL/upm).toFixed(0)} m into this stretch · across ${x>=0?'+':''}${x.toFixed(1)} m (limit −${laneAt(C.lane_left_m,s).toFixed(1)} / +${laneAt(C.lane_right_m,s).toFixed(1)}) · height ${h.toFixed(1)} m`:mode==='free'&&LOOP?'free fly · endless loop':mode==='ride'?`along ${(Math.min(s,N-1)*step/upm+(s>N-1?(s-N+1)*step/upm:0)).toFixed(1)} of ${TAIL?'∞':(cfg.path_length/upm+endM).toFixed(0)} m${TAIL&&s>N-1?' (endless road)':''} · across ${x>=0?'+':''}${x.toFixed(1)} m (limit −${laneAt(C.lane_left_m,s).toFixed(1)} / +${laneAt(C.lane_right_m,s).toFixed(1)}) · height ${h.toFixed(1)} m`:'free fly';
+ const away=offPath(),w=$('warn');if(mode==='free'&&!BOUND&&away>C.half_width_m+.5){w.style.display='block';w.textContent='You are '+away.toFixed(1)+' m from the filmed path, outside the validated corridor (±'+C.half_width_m+' m); expect holes and smears.';}else w.style.display='none';
+ renderer.render(scene,camera);renderCockpit(__dt);};renderer.setAnimationLoop(now=>__loop(__fakeNow??now));
+// Review hook: step the loop synchronously and return the canvas (works while the page is hidden; see tools/shots.js).
+window.__tick=(n=1,dt=1/30)=>{let t=__fakeNow??performance.now();for(let i=0;i<n;i++){t+=dt*1000;__fakeNow=t;__loop(t);}return renderer.domElement.toDataURL('image/png');};
+window.__realtime=()=>{__fakeNow=null;previous=performance.now();};window.__play=()=>{$('play').click();playing=__fakeNow??performance.now();};window.__cockpit=cockpit;
+// For screenshots from the console: progress in frames, across and height in metres, yaw and pitch in degrees.
+window.ride=(fs,ax=0,ah=eye,ay=0,ap=0)=>{playing=null;setMode('ride');s=fs;x=Math.max(-laneAt(C.lane_left_m,fs),Math.min(laneAt(C.lane_right_m,fs),ax));h=ah;yaw=ay;pitch=ap;applyRide();renderer.render(scene,camera);};
+window.__v={camera,renderer,scene,spark,mesh,sets,up,upm,tail:{TAIL,tailMeshes,updateTail},loop:{P0,T,TL,Tu,RIGHT,W,BOUND},render:()=>renderer.render(scene,camera),step:(m)=>{const f=new THREE.Vector3();camera.getWorldDirection(f);camera.position.addScaledVector(f,m*upm);camera.updateMatrixWorld();renderer.render(scene,camera);}};
+window.laneAt=(fs)=>[laneAt(C.lane_left_m,fs),laneAt(C.lane_right_m,fs)];
+window.rideRaw=(fs,ax=0,ah=eye,ay=0,ap=0)=>{playing=null;mode='free';s=fs;x=ax;h=ah;yaw=ay;pitch=ap;applyRide();renderer.render(scene,camera);};
+</script></body></html>

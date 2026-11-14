@@ -1,0 +1,66 @@
+{
+  "_doc": "Shared contact points in bike-mount space (metres; Blender Z-up with +Y forward == three.js Y-up with -Z forward). Read by clean_bike.py, build_rider.py and the JS camera check.",
+  "bike_length_m": 1.8,
+  "grips": {
+    "left": [
+      -0.41,
+      0.21,
+      1.007
+    ],
+    "right": [
+      0.41,
+      0.21,
+      1.007
+    ]
+  },
+  "seat_contact": [
+    0.0,
+    -0.2,
+    0.765
+  ],
+  "rider_scale": 0.6,
+  "rider_lean_deg": 22,
+  "pegs": {
+    "left": [
+      -0.28,
+      0.06,
+      0.5
+    ],
+    "right": [
+      0.28,
+      0.06,
+      0.5
+    ]
+  },
+  "grip_fix": {
+    "_doc": "measured_* from the generated mesh in mount space (dark rubber slices); targets are symmetric",
+    "left": {
+      "measured_center": [
+        -0.43,
+        0.367,
+        1.002
+      ],
+      "measured_axis": [
+        -1.0,
+        0.0,
+        -0.12
+      ]
+    },
+    "right": {
+      "measured_center": [
+        0.4,
+        0.115,
+        0.978
+      ],
+      "measured_axis": [
+        1.0,
+        -0.62,
+        -0.05
+      ]
+    },
+    "target_sweep_deg": 8,
+    "target_droop_deg": 6,
+    "bend_from_m": 0.09,
+    "bend_to_m": 0.25
+  }
+}

@@ -1,14 +1,42 @@
 # Dune Rush
 
-A browser dirt-bike prototype by **Arjun Behl and Ali**. Ride through a desert road, a daytime root passage, and a glowing night passage. Switch worlds while riding: the scenery, bike and audio change together.
+A browser dirt-bike prototype by **Arjun Behl and Ali**, built around **millions of 3D Gaussian splats**. Ride through a desert road, a daytime root passage and a glowing night passage, then watch a new world fall into place while you keep moving.
 
-## See the game
+**4.69 million splat instances in the desert · Three worlds · A one-second rainfall reveal**
 
-Live captures from the running demo. The GIFs show riding and world transitions; they have no audio.
+[Download and play](#download-and-run) · [Illustrated guide (PDF)](docs/Dune-Rush-Download-Instructions.pdf) · [Splat counts](#millions-of-splats-in-the-browser)
 
-| Daytime ride | Transition to glowing night | Transition to desert |
-| --- | --- | --- |
-| ![Live gameplay through the daytime root passage](docs/media/day-ride.gif) | ![Rainfall transition into the glowing night world](docs/media/night-transition.gif) | ![Rainfall transition back to the desert road](docs/media/desert-transition.gif) |
+## Watch the world change
+
+The scenery changes around the moving bike: incoming splats appear from top to bottom with a cyan glow, while the outgoing world fades away. The bike, sky and audio follow the same transition.
+
+| Into the glowing night | Back to the desert |
+| --- | --- |
+| ![Live rainfall transition into the glowing night world](docs/media/night-transition.gif) | ![Live rainfall transition back to the desert road](docs/media/desert-transition.gif) |
+
+These GIFs were captured from the running game. They have no audio.
+
+The reveal operates on individual splats in 3D, using staggered columns to make the next world appear to rain into place. Both world tile sets participate during the switch, and movement continues throughout. The reveal itself defaults to **1 second**, after the incoming scene is loaded and prepared; reduced-motion mode switches without the animation.
+
+## Millions of splats in the browser
+
+The environments are made from 3D Gaussian splats: small, oriented, translucent shapes that combine into the road, rock formations, roots and glowing scenery. Three.js and Spark render them in the browser, alongside the bike and rider meshes.
+
+| World | Unique splats in its tile | Tile copies | Splat instances across the copies |
+| --- | ---: | ---: | ---: |
+| Desert road | 1,564,494 | 3 | **4,693,482** |
+| Root passage (day) | 605,277 | 4 | **2,421,108** |
+| Glowing night | 634,062 | 4 | **2,536,248** |
+
+The three source tiles contain **2,803,833 unique splats** in total. Copies share their source data and move around the camera to extend the ride. The instance totals count repeated tiles; they do not mean every splat is visible on screen at once.
+
+During a desert ↔ night transition, the two participating tile sets contain **7,229,730 splat instances** combined, before visibility and opacity filtering. The transition changes each splat's opacity, scale and glow as the two environments exchange places.
+
+Counts come directly from the bundled PLY headers and the copy lists in [`fantasy-worlds.json`](fantasy-worlds.json). The reveal is implemented in [`fantasy.html`](fantasy.html).
+
+### Ride through the details
+
+![Live ride through the daytime root passage](docs/media/day-ride.gif)
 
 ### Screenshots
 

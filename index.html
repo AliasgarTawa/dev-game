@@ -7,6 +7,7 @@
     <meta name="theme-color" content="#1a0d05" />
     <title>Dune Rush — Desert Bike Racing</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preload" as="image" href="/opening/first-frame.webp" type="image/webp" fetchpriority="high" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -15,20 +16,30 @@
     />
   </head>
   <body>
+    <img
+      class="backdrop"
+      src="/opening/first-frame.webp"
+      alt=""
+      width="1344"
+      height="768"
+      fetchpriority="high"
+      decoding="async"
+    />
     <canvas id="scene" aria-hidden="true"></canvas>
     <div class="scrim" aria-hidden="true"></div>
 
-    <div class="loader" role="status" aria-live="polite">
-      <p class="loader__title">Dune Rush</p>
-      <div class="loader__bar" aria-hidden="true"><span></span></div>
-      <p class="loader__text">Warming up the engine…</p>
+    <div class="model-status" data-state="loading" role="status" aria-live="polite">
+      <span class="model-status__spinner" aria-hidden="true"></span>
+      <span class="model-status__text">Rolling the bike out…</span>
+      <span class="model-status__progress" aria-hidden="true"></span>
+      <button class="model-status__retry" type="button" hidden>Retry</button>
     </div>
 
     <main class="menu">
       <header class="brand">
         <p class="brand__eyebrow">Desert Motocross Racing</p>
         <h1 class="brand__title">Dune <span>Rush</span></h1>
-        <p class="brand__tagline">Ride the dunes. Outrun the sandstorm.</p>
+        <p class="brand__tagline">Red sand, open road. Race to the arch.</p>
       </header>
 
       <nav class="actions" aria-label="Main menu">

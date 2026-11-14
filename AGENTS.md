@@ -6,12 +6,14 @@ Desert dirt-bike racing game. Vite + Three.js (vanilla JS, no framework).
 - `npm run dev` — dev server on http://localhost:3000 (port from `PORT` in `.env`)
 - `npm run build` — production build to `dist/` (verify this passes after changes)
 - `npm run preview` — serve the built `dist/`
+- `npm run optimize:assets` — regenerate the web copies in `public/models/` and `public/opening/` from the originals in `assets/` (gltf-transform: meshopt geometry, 2048px WebP textures, no simplification; poster as WebP)
 
 ## Structure
-- `index.html` — opening page markup (menu, loader, toast)
-- `src/main.js` — entry; boots the 3D scene (falls back to CSS gradient if WebGL fails) and menu
-- `src/scene.js` — desert scene: looping terrain chunks, sky shader, lights, dust, camera framing
-- `src/bike.js` — procedural dirt bike + rider
+- `index.html` — opening page markup: photo backdrop, 3D canvas, model load status, menu, audio controls, toast
+- `src/main.js` — entry; boots the 3D scene, model load/error/retry status, menu and audio
+- `src/scene.js` — opening 3D layer: loads the bike + mascot GLBs, mounts the mascot on the seat, matches the camera to the photo (vanishing point, focal length, eye height) and places the bike on the road from the UI layout; idle motion, Start Race launch, `onRide` audio data
+- `public/opening/first-frame.webp`, `public/models/*.glb` — derived web copies (never edit the originals in `assets/`)
+- `scripts/optimize-assets.mjs` — builds those derived copies
 - `src/menu.js` — menu actions, keyboard nav, toast
 - `src/audio.js` — shared audio context, music/effects buses, lazy loading, saved mix, Settings dialog and visibility pause
 - `src/audio-effects.js` — engine crossfade/RPM, tire/wind layers, spatial panning and bounded procedural cues
@@ -40,4 +42,7 @@ When building or changing the opening/title screen, use the supplied desert fram
 - Preserve the originals. Save new outputs in `assets/desert/generated/` with their prompt, reference filenames, model/settings, and sequence order.
 - Check image loading, responsive crops, text contrast, reduced-motion behavior, and visual continuity before shipping the opening screen.
 
-This commit supplies assets and an implementation brief. It does not implement the opening screen or include the game's 3D scene.
+### Implementation notes
+- The backdrop `<img class="backdrop">` uses `object-fit: cover`; `src/scene.js` reads its box and `object-position` to align the 3D camera with the photo. If you change the crop or the `PHOTO` calibration constants, re-check that the tyres sit on the road at several viewport sizes.
+- On stacked (portrait/narrow) layouts the photo is shifted down by `--backdrop-top` and the sky colour (`--color-sky`) fills the gap so the arch stays clear of the title.
+- The bike's ground point comes from the layout: beside the menu text on wide screens, just above the buttons on stacked screens. Keep the title and buttons inside `.brand` / `.actions` so that measurement keeps working.

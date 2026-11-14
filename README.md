@@ -2,6 +2,22 @@
 
 A browser dirt-bike prototype by **Arjun Behl and Ali**. Ride through a desert road, a daytime root passage, and a glowing night passage. Switch worlds while riding: the scenery, bike and audio change together.
 
+## See the game
+
+Live captures from the running demo. The GIFs show riding and world transitions; they have no audio.
+
+| Daytime ride | Transition to glowing night | Transition to desert |
+| --- | --- | --- |
+| ![Live gameplay through the daytime root passage](docs/media/day-ride.gif) | ![Rainfall transition into the glowing night world](docs/media/night-transition.gif) | ![Rainfall transition back to the desert road](docs/media/desert-transition.gif) |
+
+### Screenshots
+
+| Desert road | Root passage (day) | Glowing night |
+| --- | --- | --- |
+| ![Desert road in the running game](docs/media/desert-road.jpg) | ![Daytime root passage in the running game](docs/media/root-passage-day.jpg) | ![Glowing night in the running game](docs/media/glowing-night.jpg) |
+
+[Download the illustrated setup guide (PDF)](docs/Dune-Rush-Download-Instructions.pdf). It includes MacBook download instructions, screenshots, clickable animation links and the three GIFs as attachments. The PDF pages show still frames; open the linked or attached GIFs to see motion.
+
 ## Download and run
 
 1. Open [Releases](https://github.com/AliasgarTawa/dev-game/releases/latest) and download **dune-rush-ready-to-play.zip**. This ZIP contains the real assets, not Git LFS pointers.

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="Listen to the Woodland Day and Glowing Night companion soundtracks, forest ambience and responsive motorcycle sounds for the giant-root passage." />
+    <title>Woodland Day &amp; Glowing Night — Audio Preview</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body class="roots-preview">
+    <main class="roots-preview__layout">
+      <header class="roots-preview__header">
+        <a href="./">← Dune Rush</a>
+        <p class="roots-preview__eyebrow">Giant-root passage · Sound preview</p>
+        <h1>One path.<br />Two worlds.</h1>
+        <p>Listen to the woodland shift from warm daylight to glowing night.</p>
+      </header>
+
+      <figure class="roots-preview__scene" aria-label="Day and night root-passage references">
+        <img id="day-view" width="1280" height="720" alt="Sunlit path beneath enormous mossy roots and weathered rune stones." />
+        <img id="night-view" width="1280" height="720" alt="The root passage at night, with cyan runes and soft glowing lights." />
+        <figcaption id="environment-caption">Woodland Day</figcaption>
+      </figure>
+
+      <section class="roots-preview__panel" aria-labelledby="listen-heading">
+        <div class="roots-preview__panel-heading">
+          <h2 id="listen-heading">Choose your atmosphere</h2>
+          <button class="btn btn--ghost" data-action="settings" type="button" aria-haspopup="dialog" aria-controls="audio-settings">Mix settings</button>
+        </div>
+        <div class="roots-preview__choices" role="group" aria-label="Environment">
+          <button class="btn btn--secondary" id="choose-day" type="button" aria-pressed="true">Woodland Day</button>
+          <button class="btn btn--secondary" id="choose-night" type="button" aria-pressed="false">Glowing Night</button>
+        </div>
+        <p id="preview-status" class="roots-preview__status" role="status">Loading the passage reference…</p>
+        <div class="roots-preview__transport">
+          <button class="btn btn--primary" id="enable-audio" type="button" disabled>Enable audio</button>
+          <button class="btn btn--secondary" id="pause-audio" type="button" aria-pressed="false" disabled>Pause</button>
+        </div>
+        <div class="roots-preview__mix" role="group" aria-label="Audio channels">
+          <button class="audio-toggle" id="music-toggle" type="button" aria-pressed="false" aria-describedby="music-status">
+            <span>Music</span><span class="audio-toggle__state" aria-hidden="true">Play</span>
+          </button>
+          <button class="audio-toggle" id="effects-toggle" type="button" aria-pressed="false" aria-describedby="effects-status">
+            <span>Effects</span><span class="audio-toggle__state" aria-hidden="true">Play</span>
+          </button>
+          <button class="audio-toggle" id="ambience-toggle" type="button" aria-pressed="false" aria-describedby="ambience-status">
+            <span>Forest</span><span class="audio-toggle__state" aria-hidden="true">Play</span>
+          </button>
+        </div>
+        <p id="music-status" class="sr-only" role="status"></p>
+        <p id="effects-status" class="sr-only" role="status"></p>
+        <p id="ambience-status" class="sr-only" role="status"></p>
+      </section>
+
+      <section class="roots-preview__panel" aria-labelledby="ride-heading">
+        <div class="roots-preview__panel-heading">
+          <h2 id="ride-heading">Ride simulation</h2>
+          <span id="ride-readout" aria-live="off">Engine off · 0 km/h</span>
+        </div>
+        <p>Start the engine, build speed, then coast or brake. Change the atmosphere while moving to hear the ground texture shift.</p>
+        <div class="roots-preview__ride" role="group" aria-label="Ride simulation controls">
+          <button class="btn btn--secondary" id="engine-toggle" type="button" aria-pressed="false" disabled>Start engine</button>
+          <button class="btn btn--secondary" id="ride-accelerate" type="button" disabled>Accelerate</button>
+          <button class="btn btn--secondary" id="ride-coast" type="button" disabled>Coast</button>
+          <button class="btn btn--secondary" id="ride-brake" type="button" disabled>Brake</button>
+        </div>
+        <label class="roots-preview__reverse"><input type="checkbox" id="ride-reverse" /> Reverse direction</label>
+      </section>
+      <p class="roots-preview__note">This listening preview uses the passage reference images. The full woodland level and its bike models are a separate integration.</p>
+    </main>
+
+    <dialog class="audio-settings" id="audio-settings" aria-labelledby="audio-settings-title" aria-describedby="audio-settings-help">
+      <form method="dialog">
+        <h2 id="audio-settings-title">Find your balance</h2>
+        <p id="audio-settings-help">Set any channel to zero to mute it. Your levels are saved on this device.</p>
+        <div class="audio-settings__channel">
+          <label for="music-volume">Music</label><output id="music-level" for="music-volume">55%</output>
+          <input id="music-volume" type="range" min="0" max="100" step="1" value="55" autofocus />
+        </div>
+        <div class="audio-settings__channel">
+          <label for="effects-volume">Bike and effects</label><output id="effects-level" for="effects-volume">80%</output>
+          <input id="effects-volume" type="range" min="0" max="100" step="1" value="80" />
+        </div>
+        <div class="audio-settings__channel">
+          <label for="ambience-volume">Forest ambience</label><output id="ambience-level" for="ambience-volume">60%</output>
+          <input id="ambience-volume" type="range" min="0" max="100" step="1" value="60" />
+        </div>
+        <button class="btn btn--secondary" type="submit">Back to the passage</button>
+      </form>
+    </dialog>
+    <script type="module" src="/src/roots-preview.js"></script>
+  </body>
+</html>

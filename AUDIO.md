@@ -1,5 +1,11 @@
 # Dune Rush audio
 
+The implemented Woodland Day / Glowing Night pack is documented in
+[`docs/ROOTS-AUDIO-INTEGRATION.md`](docs/ROOTS-AUDIO-INTEGRATION.md), with
+verification results in [`docs/ROOTS-AUDIO-QA.md`](docs/ROOTS-AUDIO-QA.md).
+Open `/roots-audio.html` for the listening preview or append `?style=night`
+for a cold night entry. The original desert menu soundtrack remains in use.
+
 `public/audio/dune-rush-menu.mp3` is **Sunset Run**, an instrumental menu
 soundtrack generated for Dune Rush with ElevenLabs `music_v2` on 2026-11-14.
 

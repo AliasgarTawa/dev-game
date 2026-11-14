@@ -10,6 +10,8 @@ export function createRideAudio(context, destination) {
   let lastHover = -Infinity;
   let gear = 0;
   let shiftUntil = 0;
+  let roots;
+  let previousRide;
 
   function filter(type, frequency, output) {
     const node = context.createBiquadFilter();
@@ -87,6 +89,22 @@ export function createRideAudio(context, destination) {
     }
   }
 
+  function playSample(buffer, volume) {
+    if (voices.size >= 6) stopCue(voices.keys().next().value);
+    const source = context.createBufferSource();
+    const envelope = context.createGain();
+    source.buffer = buffer;
+    envelope.gain.value = volume;
+    source.connect(envelope).connect(destination);
+    voices.set(source, envelope);
+    source.onended = () => {
+      voices.delete(source);
+      source.disconnect();
+      envelope.disconnect();
+    };
+    source.start();
+  }
+
   function load([cruise, highLoad, tires]) {
     if (layers) return;
     const pan = context.createStereoPanner();
@@ -103,11 +121,55 @@ export function createRideAudio(context, destination) {
     };
   }
 
+  function loadRoots([idle, moss, start, stop, brake]) {
+    if (roots) return;
+    roots = {
+      idle: loop(idle, layers.engineFilter),
+      moss: loop(moss, layers.pan),
+      start, stop, brake,
+    };
+  }
+
   function update(ride, audible) {
     if (!layers || context.state !== 'running') return;
     const now = context.currentTime;
     if (now - lastUpdate < 0.05) return;
     lastUpdate = now;
+    if (ride.profile === 'roots') {
+      if (!roots) return;
+      const pace = clamp(Math.abs(ride.speed || 0) / 12);
+      const throttle = clamp(ride.throttle || 0);
+      const engine = ride.active && ride.engineOn ? 1 : 0;
+      const terrain = clamp(ride.nightBlend || 0);
+      const moving = ride.active ? pace : 0;
+      const smooth = (param, value) => param.setTargetAtTime(value, now, 0.1);
+      // Compare physical state, never key presses. Muting resets event history.
+      if (previousRide && audible) {
+        if (ride.engineOn && !previousRide.engineOn) playSample(roots.start, 0.55);
+        if (!ride.engineOn && previousRide.engineOn) playSample(roots.stop, 0.55);
+        if (ride.braking && !previousRide.braking && moving > 0.02) playSample(roots.brake, 0.35);
+      }
+      previousRide = audible ? { engineOn: ride.engineOn, braking: ride.braking } : null;
+      smooth(roots.idle.gain.gain, engine * 0.5 * (1 - Math.min(1, pace * 4)));
+      smooth(layers.cruise.gain.gain, engine * 0.48 * Math.min(1, pace * 4) * (1 - throttle * 0.5));
+      smooth(layers.load.gain.gain, engine * 0.45 * throttle * Math.min(1, pace * 3));
+      smooth(layers.cruise.source.playbackRate, 0.85 + pace * 0.3);
+      smooth(layers.load.source.playbackRate, 0.85 + throttle * 0.2 + pace * 0.15);
+      smooth(layers.tires.source.playbackRate, 0.85 + pace * 0.3);
+      smooth(roots.moss.source.playbackRate, 0.85 + pace * 0.3);
+      smooth(layers.tires.gain.gain, moving * 0.3 * Math.cos(terrain * Math.PI / 2));
+      smooth(roots.moss.gain.gain, moving * 0.5 * Math.sin(terrain * Math.PI / 2));
+      smooth(layers.wind.gain.gain, moving * 0.12);
+      smooth(layers.windFilter.frequency, 650 + pace * 1400);
+      smooth(layers.engineFilter.frequency, 2400 + throttle * 1800);
+      smooth(layers.pan.pan, clamp(ride.pan || 0, -0.4, 0.4));
+      return;
+    }
+    if (roots) {
+      roots.idle.gain.gain.setTargetAtTime(0, now, 0.1);
+      roots.moss.gain.gain.setTargetAtTime(0, now, 0.1);
+    }
+    previousRide = null;
     const pace = clamp((ride.speed - 1) / 1.8);
     const boost = clamp(ride.boost);
     const nextGear = pace > 0.67 ? 2 : pace > 0.32 ? 1 : 0;
@@ -134,7 +196,8 @@ export function createRideAudio(context, destination) {
 
   function stopCues() {
     for (const source of voices.keys()) stopCue(source);
+    previousRide = null;
   }
 
-  return { load, update, cue, stopCues };
+  return { load, loadRoots, update, cue, stopCues };
 }

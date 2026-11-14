@@ -1,0 +1,37 @@
+{
+  "chunks": [
+    {
+      "text": "[Instrumental]",
+      "duration_ms": 20000,
+      "positive_styles": [
+        "instrumental only", "96 BPM locked steady tempo", "4/4 time", "D Dorian",
+        "8-bar phrase", "gentle acoustic plucked strings",
+        "wooden marimba answering a simple repeating D F A E four-note motif",
+        "warm restrained bass", "very soft hand percussion", "sparse breathy flute accents",
+        "curious welcoming woodland adventure", "already in the groove from the first beat",
+        "dry sparse mix leaving space for motorcycle sounds"
+      ],
+      "negative_styles": [
+        "vocals", "speech", "chanting", "environmental sound effects", "engine sounds",
+        "dramatic intro", "silence", "trailer impacts", "dramatic crescendo"
+      ],
+      "context_adherence": "high"
+    },
+    {
+      "text": "[Instrumental]",
+      "duration_ms": 20000,
+      "positive_styles": [
+        "instrumental only", "96 BPM locked steady tempo", "4/4 time", "D Dorian",
+        "8-bar phrase", "same recurring D F A E four-note motif",
+        "gentle plucked strings and marimba call and response",
+        "same warm restrained bass and very soft hand percussion", "sparse breathy flute accents",
+        "continue the same understated groove through the final beat", "natural return to the first bar", "dry sparse mix"
+      ],
+      "negative_styles": [
+        "vocals", "speech", "chanting", "environmental sound effects", "engine sounds",
+        "final cadence", "fade out", "silence", "trailer impacts", "dramatic crescendo"
+      ],
+      "context_adherence": "high"
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "provider": "ElevenLabs",
+  "date": "2026-11-14",
+  "authorization": "User requested execution of docs/ROOTS-DAY-NIGHT-DESIGN-AND-AUDIO.md.",
+  "creditsBefore": 1045,
+  "creditsAfter": 2783,
+  "observedCreditCost": 1738,
+  "creditAccounting": "Subscription usage is observed for the entire batch. Individual generation costs are not exposed by the MCP.",
+  "sfxDefaults": {
+    "model": "API default; the local MCP does not send a model_id or return one",
+    "output_format": "mp3_44100_192",
+    "generationId": null,
+    "generationIdNote": "The local MCP returns the saved filename but not SFX provider generation IDs.",
+    "toolDurationLimitSeconds": 5
+  },
+  "music": [
+    {
+      "name": "woodland-day",
+      "source": "music__20261114_160736.mp3",
+      "model": "music_v2",
+      "composition_plan": "woodland-day.plan.json",
+      "seed": 41027,
+      "store_for_inpainting": true,
+      "generationId": "IKMwxVOLOd6JJQe2B9e4",
+      "generationIdType": "song_id"
+    },
+    {
+      "name": "glowing-night",
+      "source": "music__20261114_161023.mp3",
+      "model": "music_v2",
+      "composition_plan": "glowing-night.plan.json",
+      "seed": 41028,
+      "store_for_inpainting": true,
+      "generationId": "x2sfMLEqQQ5aCzUMpNlC",
+      "generationIdType": "song_id"
+    }
+  ],
+  "effects": [
+    {
+      "name": "forest-day-1", "source": "sfx_Woodl_20261114_160648.mp3", "duration_seconds": 5, "loop": true,
+      "text": "Woodland day: seamless stereo ambience in a sheltered ancient forest passage beneath huge roots. Gentle leafy air and soft foliage rustle, one sparse small distant bird call, warm peaceful spacious atmosphere. Constant quiet background throughout, no distinct beginning or ending. No footsteps, engines, music, voices, dramatic animals or close buzzing insects."
+    },
+    {
+      "name": "forest-night-1", "source": "sfx_Glowi_20261114_160652.mp3", "duration_seconds": 5, "loop": true,
+      "text": "Glowing night: seamless stereo ambience in the same sheltered ancient forest passage, soft distant night insects, faint leaf rustle and very sparse delicate glass-like twinkles from magical glowing runes. Calm spacious mysterious safe atmosphere, mostly quiet air. No horror stingers, dominant owls, voices, music, engines, footsteps, continuous sharp glitter or dramatic beginning and ending."
+    },
+    {
+      "name": "tires-moss", "source": "sfx_Moss__20261114_160742.mp3", "duration_seconds": 5, "loop": true,
+      "text": "Moss tire surface: rubber off-road motorcycle tires rolling steadily over damp compact soil, soft moss and occasional dry leaves. Intimate low granular rustle, soft small irregular leaf ticks. Constant speed, clean isolated seamless loop. No engine, wind, voices, music, footsteps, splashes, sticky squelches, impacts or tire squeals."
+    },
+    {
+      "name": "transition-to-night", "source": "sfx_Night_20261114_160744.mp3", "duration_seconds": 1.5, "loop": false,
+      "text": "Night transition cue: one short soft descending magical rainfall transformation, a gentle airy top-to-bottom sweep with delicate cyan crystal droplets, ending in a warm low shimmer with a soft tail. Elegant, restrained and satisfying. No thunder, explosion, harsh hiss, trailer impact, musical melody or speech."
+    },
+    {
+      "name": "transition-to-day", "source": "sfx_Day_t_20261114_160746.mp3", "duration_seconds": 1.5, "loop": false,
+      "text": "Day transition cue: one short gentle magical return to warm woodland daylight, airy drifting particles and soft woody chimes resolving into a warm breath of wind. A restrained organic companion to a descending crystal transformation. Soft short tail. No dramatic impact, thunder, harsh sparkle, musical melody or speech."
+    },
+    {
+      "name": "forest-day-2", "source": "sfx_Day_f_20261114_161029.mp3", "duration_seconds": 5, "loop": true,
+      "text": "Day foliage variation: seamless stereo forest room tone beneath huge sheltered mossy roots. Very gentle leafy air and dry foliage rustle, warm spacious peaceful daylight. Soft natural fluctuations, no obvious beginning or ending. No birds close to microphone, insects, voices, music, footsteps, engines, dramatic gusts or rain."
+    },
+    {
+      "name": "forest-day-3", "source": "sfx_Dawn__20261114_161032.mp3", "duration_seconds": 5, "loop": true,
+      "text": "Dawn bird variation: seamless stereo ambience beneath massive woodland roots, faint soft leafy breeze with a very small distant songbird answering from far away. Warm quiet sheltered daylight and plenty of silence between calls. Stable natural bed, no intro or ending, no close birds, buzzing insects, voices, music, engines or footsteps."
+    },
+    {
+      "name": "forest-day-4", "source": "sfx_Warm__20261114_161035.mp3", "duration_seconds": 5, "loop": true,
+      "text": "Warm woodland variation: seamless stereo ambience in a sheltered ancient root passage. Soft irregular leaf movement overhead and a gentle distant airy woodland hush. Restrained quiet warm daylight, spacious and peaceful, consistent background throughout. No close buzzing insects, footsteps, engines, voices, music, animal cries, dramatic gusts or rain."
+    },
+    {
+      "name": "forest-night-2", "source": "sfx_Moonl_20261114_161052.mp3", "duration_seconds": 5, "loop": true,
+      "text": "Moonlit leaf variation: seamless stereo ambience beneath sheltered ancient forest roots at night. Very soft foliage rustle, distant insect murmur, gentle quiet airy space. Safe calm woodland night with slow natural fluctuations. No dominant chirps, owls, voices, music, engines, footsteps, horror stingers, high-pitched glitter or distinct beginning and ending."
+    },
+    {
+      "name": "forest-night-3", "source": "sfx_Rune__20261114_161055.mp3", "duration_seconds": 5, "loop": true,
+      "text": "Rune air variation: seamless stereo ambience inside a quiet magical woodland root passage at night. Soft distant insect bed, faint leafy air and one almost imperceptible rounded glass-like rune shimmer far away. Sheltered, spacious, gentle and safe. No melody, music, speech, engines, dominant owls, horror, sharp treble or continuous glitter."
+    },
+    {
+      "name": "forest-night-4", "source": "sfx_Quiet_20261114_161100.mp3", "duration_seconds": 5, "loop": true,
+      "text": "Quiet night variation: seamless stereo ambience under enormous mossy forest roots, tiny distant night insects and very subtle leaf movement in sheltered air. Spacious soft nocturnal room tone, steady quiet background, no dramatic event or ending. No close buzzing, loud chirps, owls, voices, music, engines, footsteps, horror sounds or high treble shimmer."
+    },
+    {
+      "name": "bike-idle", "source": "sfx_Idle__20261114_161104.mp3", "duration_seconds": 5, "loop": true,
+      "text": "Idle motorcycle: one small well-maintained 250cc single-cylinder four-stroke trail scrambler at a stable warm idle. Soft rounded dry exhaust pulses and subtle mechanical ticking, close rider perspective. Constant low RPM and distance, already running throughout, seamless loop. Isolated engine only. No acceleration, shifts, wind, tires, voices, music, startup or shutdown."
+    },
+    {
+      "name": "bike-start", "source": "sfx_Start_20261114_161117.mp3", "duration_seconds": 2.5, "loop": false,
+      "text": "Starting motorcycle: one compact friendly single-cylinder 250cc four-stroke trail motorcycle starting. Brief starter turnover, ignition catches, then settles into gentle warm idle. Dry close rider perspective, soft controlled volume. No other vehicle, wind, tires, speech, music, horn, backfire or dramatic revving."
+    },
+    {
+      "name": "bike-stop", "source": "sfx_Stopp_20261114_161119.mp3", "duration_seconds": 1.5, "loop": false,
+      "text": "Stopping motorcycle: one small single-cylinder four-stroke trail motorcycle ignition switching off from a soft idle, a few warm final engine pulses and a tiny mechanical settling click. Dry close quiet recording with a clean short ending. No ambience, wind, voices, music, backfire, revving or dramatic impact."
+    },
+    {
+      "name": "brake-soft", "source": "sfx_Braki_20261114_161121.mp3", "duration_seconds": 0.8, "loop": false,
+      "text": "Braking motorcycle: one brief gentle trail motorcycle brake application, soft restrained rubber and disc friction with a tiny lever click. Close dry subtle mechanical foley, short clean tail. No skidding, tire squeal, collision, engine, wind, speech or music."
+    }
+  ],
+  "notes": [
+    "An initial music request combined force_instrumental with composition_plan and was rejected before generating audio. Successful plans use explicit instrumental sections and negative vocal/speech styles.",
+    "Each ambience is assembled from four independently generated five-second textures because the installed MCP caps SFX jobs at five seconds.",
+    "This file preserves submitted generation instructions. Processing measurements and browser delivery files are recorded separately in manifest.json."
+  ]
+}

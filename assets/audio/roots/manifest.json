@@ -1,0 +1,511 @@
+{
+  "schemaVersion": 1,
+  "generationRecord": "generation.json",
+  "sourceFidelity": "Original MP3 exports retained. 48 kHz WAV masters are processing derivatives, not enhanced recordings.",
+  "musicTransitionMode": "ambience-bridge",
+  "musicTransitionReason": "Companion arrangements are conditioned on the same source, but exact beat grids and tonal compatibility have not been certified. Fade through ambience instead of overlaying unverified beats.",
+  "observedCreditCost": 1738,
+  "humanListeningReview": "pending",
+  "sources": [
+    {
+      "file": "music__20261114_160736.mp3",
+      "sha256": "20c9922b0ce696375c2d2d8677e7b28ea464f13060166df6cff3ae9230eed435",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "48000",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "40.034167"
+      }
+    },
+    {
+      "file": "music__20261114_161023.mp3",
+      "sha256": "64237b6bd4e1bf63308570e84eb062af47345020119a9b57230e6772b383ed27",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "48000",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "40.034167"
+      }
+    },
+    {
+      "file": "sfx_Woodl_20261114_160648.mp3",
+      "sha256": "2a15e5a3e3ce7ab6cd1fe41273996593516de0b97e0d6050163e75b77a39d1ba",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "5.000000"
+      }
+    },
+    {
+      "file": "sfx_Glowi_20261114_160652.mp3",
+      "sha256": "c86b546b3510dbefc29b6219c366d61ff9b42499487345654a6c02557a14b6f4",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "5.000000"
+      }
+    },
+    {
+      "file": "sfx_Moss__20261114_160742.mp3",
+      "sha256": "dc98857f53f62ff72632f31bbd9340ce02d3d0a19bcd22181decd85adec9c647",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "5.000000"
+      }
+    },
+    {
+      "file": "sfx_Night_20261114_160744.mp3",
+      "sha256": "46b4f7c45706827c30e1b5f100db53deb379b71d4c50df6d72820ce8b9e69bb0",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "1.480000"
+      }
+    },
+    {
+      "file": "sfx_Day_t_20261114_160746.mp3",
+      "sha256": "adb4e9a0215d6a522fab7ede551593a37663c02c495e9d9bcc246159c0450cef",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "1.480000"
+      }
+    },
+    {
+      "file": "sfx_Day_f_20261114_161029.mp3",
+      "sha256": "455b33c8b82850e166567c26ecd79b2e2ee74070eb65f92ed3adc5ec952eae2b",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "5.000000"
+      }
+    },
+    {
+      "file": "sfx_Dawn__20261114_161032.mp3",
+      "sha256": "f73d93215410e71110bb28fadf337cf87bb6264289cf6032856424c1cb3505a5",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "5.000000"
+      }
+    },
+    {
+      "file": "sfx_Warm__20261114_161035.mp3",
+      "sha256": "e2aff930552557df6ced055df7892399c0efa22c0730eed85a21b0684eaae66c",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "5.000000"
+      }
+    },
+    {
+      "file": "sfx_Moonl_20261114_161052.mp3",
+      "sha256": "93defe1ffeee493073def14ed6a63bdf77a48f0cfdc5c4c93e97d0e2fd5b4632",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "5.000000"
+      }
+    },
+    {
+      "file": "sfx_Rune__20261114_161055.mp3",
+      "sha256": "8928747b276c41fbe8e79c0ea4089fb400e5729aa246570be3fa3c2bed81a35b",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "5.000000"
+      }
+    },
+    {
+      "file": "sfx_Quiet_20261114_161100.mp3",
+      "sha256": "5ad9766b944c6bead9e7d9e2e2afee8d160bf35ff1228bedb20b30ad999f87b6",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "5.000000"
+      }
+    },
+    {
+      "file": "sfx_Idle__20261114_161104.mp3",
+      "sha256": "c221004fe89b4f7065ffbd388999b604fe8e2f9046a75dae57a943db06337f0d",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "5.000000"
+      }
+    },
+    {
+      "file": "sfx_Start_20261114_161117.mp3",
+      "sha256": "5f60fa86a4248e4a981b372a9223df9c3bc537f4a7c65639c976b8d7bcbd32df",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "2.480000"
+      }
+    },
+    {
+      "file": "sfx_Stopp_20261114_161119.mp3",
+      "sha256": "22cd9132f10098794438d447e0289ddc11ba025e0e7dccf3bea2cd1b42dd937e",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "1.480000"
+      }
+    },
+    {
+      "file": "sfx_Braki_20261114_161121.mp3",
+      "sha256": "2198b45a1f6be055f0cbd284d084833b4c6d4b19b783650e9ef9b3e4293940c0",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "sample_rate": "44100",
+          "channels": 2
+        }
+      ],
+      "format": {
+        "duration": "0.800000"
+      }
+    }
+  ],
+  "assets": [
+    {
+      "name": "woodland-day",
+      "sources": [
+        "music__20261114_160736.mp3"
+      ],
+      "master": "woodland-day.master.wav",
+      "delivery": "public/audio/roots/woodland-day.mp3",
+      "durationSeconds": 39.782,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "loopStartSeconds": 0,
+      "loopEndSeconds": 39.782,
+      "lufs": -21.39,
+      "truePeakDbtp": -5.27,
+      "clippedSamples": 0,
+      "silent50msWindows": 0,
+      "seamStep": 0.023302815854549408,
+      "bytes": 956204,
+      "sha256": "42733c4978e8a1e266645a5a7915a01ab051a85c751042b9033b4885017ce60b",
+      "estimatedBpm": 95.34,
+      "tonalCentreVerified": false,
+      "beatGridVerified": false
+    },
+    {
+      "name": "glowing-night",
+      "sources": [
+        "music__20261114_161023.mp3"
+      ],
+      "master": "glowing-night.master.wav",
+      "delivery": "public/audio/roots/glowing-night.mp3",
+      "durationSeconds": 39.782,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "loopStartSeconds": 0,
+      "loopEndSeconds": 39.782,
+      "lufs": -21.21,
+      "truePeakDbtp": -5.25,
+      "clippedSamples": 0,
+      "silent50msWindows": 0,
+      "seamStep": 0.011641450226306915,
+      "bytes": 956204,
+      "sha256": "24936ff4acef3332356c9a008c6343864d2b756d96c27b25133db6c553668bb2",
+      "estimatedBpm": 95.34,
+      "tonalCentreVerified": false,
+      "beatGridVerified": false
+    },
+    {
+      "name": "forest-day",
+      "sources": [
+        "sfx_Woodl_20261114_160648.mp3",
+        "sfx_Day_f_20261114_161029.mp3",
+        "sfx_Dawn__20261114_161032.mp3",
+        "sfx_Warm__20261114_161035.mp3"
+      ],
+      "master": "forest-day.master.wav",
+      "delivery": "public/audio/roots/forest-day.mp3",
+      "durationSeconds": 20.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "loopStartSeconds": 0,
+      "loopEndSeconds": 20.0,
+      "lufs": -26.17,
+      "truePeakDbtp": -5.41,
+      "clippedSamples": 0,
+      "silent50msWindows": 0,
+      "seamStep": 0.018821032717823982,
+      "bytes": 481580,
+      "sha256": "5ad970b33d09a12bf6b332f838447766ca73c5881d517644eb0656da97faa779"
+    },
+    {
+      "name": "forest-night",
+      "sources": [
+        "sfx_Glowi_20261114_160652.mp3",
+        "sfx_Moonl_20261114_161052.mp3",
+        "sfx_Rune__20261114_161055.mp3",
+        "sfx_Quiet_20261114_161100.mp3"
+      ],
+      "master": "forest-night.master.wav",
+      "delivery": "public/audio/roots/forest-night.mp3",
+      "durationSeconds": 20.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "loopStartSeconds": 0,
+      "loopEndSeconds": 20.0,
+      "lufs": -26.25,
+      "truePeakDbtp": -13.22,
+      "clippedSamples": 0,
+      "silent50msWindows": 0,
+      "seamStep": 0.0050854068249464035,
+      "bytes": 481580,
+      "sha256": "41bfca3bfe95ec604527eb87f4c36dc97ac5fca02d76a91211ee5b7f91017cd7"
+    },
+    {
+      "name": "tires-moss",
+      "sources": [
+        "sfx_Moss__20261114_160742.mp3"
+      ],
+      "master": "tires-moss.master.wav",
+      "delivery": "public/audio/roots/tires-moss.wav",
+      "durationSeconds": 4.8,
+      "sampleRate": 48000,
+      "channels": 1,
+      "loop": true,
+      "loopStartSeconds": 0,
+      "loopEndSeconds": 4.8,
+      "lufs": -30.6,
+      "truePeakDbtp": -4.97,
+      "clippedSamples": 0,
+      "silent50msWindows": 0,
+      "seamStep": 0.000579833984375,
+      "bytes": 460878,
+      "sha256": "e185a3725676c549e2c90dd221ed14be70b50c1fb4fefdad762a4d462ea0509f"
+    },
+    {
+      "name": "transition-to-night",
+      "sources": [
+        "sfx_Night_20261114_160744.mp3"
+      ],
+      "master": "transition-to-night.master.wav",
+      "delivery": "public/audio/roots/transition-to-night.wav",
+      "durationSeconds": 1.48,
+      "sampleRate": 48000,
+      "channels": 1,
+      "loop": false,
+      "loopStartSeconds": null,
+      "loopEndSeconds": null,
+      "lufs": -22.73,
+      "truePeakDbtp": -7.68,
+      "clippedSamples": 0,
+      "silent50msWindows": 0,
+      "seamStep": null,
+      "bytes": 142158,
+      "sha256": "0854c6dc3611484c6e7e0fa24961e591bda376cffb354e3ab7c21e9b44f967af"
+    },
+    {
+      "name": "transition-to-day",
+      "sources": [
+        "sfx_Day_t_20261114_160746.mp3"
+      ],
+      "master": "transition-to-day.master.wav",
+      "delivery": "public/audio/roots/transition-to-day.wav",
+      "durationSeconds": 1.48,
+      "sampleRate": 48000,
+      "channels": 1,
+      "loop": false,
+      "loopStartSeconds": null,
+      "loopEndSeconds": null,
+      "lufs": -25.56,
+      "truePeakDbtp": -4.99,
+      "clippedSamples": 0,
+      "silent50msWindows": 0,
+      "seamStep": null,
+      "bytes": 142158,
+      "sha256": "88d84b1222359f7b6eca669289e7c8c4a29112c7c96e9f24b33639f81005f68b"
+    },
+    {
+      "name": "bike-idle",
+      "sources": [
+        "sfx_Idle__20261114_161104.mp3"
+      ],
+      "master": "bike-idle.master.wav",
+      "delivery": "public/audio/roots/bike-idle.wav",
+      "durationSeconds": 4.8,
+      "sampleRate": 48000,
+      "channels": 1,
+      "loop": true,
+      "loopStartSeconds": 0,
+      "loopEndSeconds": 4.8,
+      "lufs": -21.99,
+      "truePeakDbtp": -8.68,
+      "clippedSamples": 0,
+      "silent50msWindows": 0,
+      "seamStep": 0.005218505859375,
+      "bytes": 460878,
+      "sha256": "e280eff8a6f7e159cd2de522a872bb73a0b4999b50e61e1523d059b2501c5ea9"
+    },
+    {
+      "name": "bike-start",
+      "sources": [
+        "sfx_Start_20261114_161117.mp3"
+      ],
+      "master": "bike-start.master.wav",
+      "delivery": "public/audio/roots/bike-start.wav",
+      "durationSeconds": 2.48,
+      "sampleRate": 48000,
+      "channels": 1,
+      "loop": false,
+      "loopStartSeconds": null,
+      "loopEndSeconds": null,
+      "lufs": -23.32,
+      "truePeakDbtp": -4.88,
+      "clippedSamples": 0,
+      "silent50msWindows": 0,
+      "seamStep": null,
+      "bytes": 238158,
+      "sha256": "5f5e57ccdc97ee4d5c565efcec0199daaaed488a6db56d33d064ae66fd81e021"
+    },
+    {
+      "name": "bike-stop",
+      "sources": [
+        "sfx_Stopp_20261114_161119.mp3"
+      ],
+      "master": "bike-stop.master.wav",
+      "delivery": "public/audio/roots/bike-stop.wav",
+      "durationSeconds": 1.48,
+      "sampleRate": 48000,
+      "channels": 1,
+      "loop": false,
+      "loopStartSeconds": null,
+      "loopEndSeconds": null,
+      "lufs": -26.5,
+      "truePeakDbtp": -5.01,
+      "clippedSamples": 0,
+      "silent50msWindows": 0,
+      "seamStep": null,
+      "bytes": 142158,
+      "sha256": "6d15e39d69ba2e9125079eb45abd5e7b9727c062f3dad1c3d404d2d596b7c6c9"
+    },
+    {
+      "name": "brake-soft",
+      "sources": [
+        "sfx_Braki_20261114_161121.mp3"
+      ],
+      "master": "brake-soft.master.wav",
+      "delivery": "public/audio/roots/brake-soft.wav",
+      "durationSeconds": 0.8,
+      "sampleRate": 48000,
+      "channels": 1,
+      "loop": false,
+      "loopStartSeconds": null,
+      "loopEndSeconds": null,
+      "lufs": -27.68,
+      "truePeakDbtp": -5.02,
+      "clippedSamples": 0,
+      "silent50msWindows": 0,
+      "seamStep": null,
+      "bytes": 76878,
+      "sha256": "199c01f1fbc88495cfd012d6f232b548d8839f22eaac5afbe7f7c26f69fbdd58"
+    }
+  ]
+}

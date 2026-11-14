@@ -1,0 +1,213 @@
+.roots-preview {
+  --color-primary: #c9dfa5;
+  --color-primary-hover: #b2ca89;
+  --color-primary-soft: #d3e7b5;
+  --color-on-primary: #192213;
+  --color-bg-deep: #172219;
+  --color-text: #f3f6e9;
+  --color-text-muted: #c1cfbe;
+  --color-border: #819580;
+  --color-focus: #e9f4bf;
+  --color-glass: rgba(7, 17, 15, 0.8);
+  --preview-surface: #202e23;
+  --preview-background: #0c1712;
+  --preview-scrim: rgba(7, 17, 15, 0.86);
+  --preview-content-width: 1040px;
+  height: auto;
+  min-height: 100vh;
+  overflow: auto;
+  background: var(--preview-background);
+  font-family: system-ui, sans-serif;
+}
+
+.roots-preview__layout {
+  width: min(var(--preview-content-width), calc(100% - 2 * var(--space-5)));
+  margin: var(--space-7) auto;
+  display: grid;
+  gap: var(--space-5);
+}
+
+.roots-preview__header {
+  padding-block: var(--space-4);
+}
+
+.roots-preview a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-text-muted);
+  text-underline-offset: 0.25em;
+}
+
+.roots-preview__eyebrow {
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.roots-preview h1 {
+  font: 700 clamp(2.5rem, 8vw, 4.5rem)/1.02 system-ui, sans-serif;
+  letter-spacing: -0.04em;
+  margin: var(--space-4) 0;
+}
+
+.roots-preview h2 {
+  font: 600 1.2rem/1.4 system-ui, sans-serif;
+  margin: 0;
+}
+
+.roots-preview p {
+  max-width: 64ch;
+  color: var(--color-text-muted);
+  line-height: 1.65;
+  font-size: 1rem;
+}
+
+.roots-preview__scene {
+  --night-blend: 0;
+  position: relative;
+  margin: 0;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--preview-surface);
+}
+
+.roots-preview__scene img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.roots-preview__scene img:not([src]) {
+  visibility: hidden;
+}
+
+#night-view {
+  clip-path: inset(0 0 calc((1 - var(--night-blend)) * 100%) 0);
+}
+
+.roots-preview figcaption {
+  position: absolute;
+  inset: auto 0 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--preview-scrim);
+  color: var(--color-text);
+  font-size: 0.875rem;
+}
+
+.roots-preview__panel {
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--preview-surface);
+}
+
+.roots-preview__panel-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.roots-preview__panel-heading span,
+.roots-preview .roots-preview__note {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.roots-preview__choices,
+.roots-preview__ride,
+.roots-preview__transport,
+.roots-preview__mix {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.roots-preview__mix {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: var(--space-4);
+}
+
+.roots-preview .btn {
+  justify-content: center;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-3);
+  font-size: 0.875rem;
+  letter-spacing: 0;
+}
+
+.roots-preview .btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+  transform: none;
+}
+
+.roots-preview .btn[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+.roots-preview .audio-toggle {
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.roots-preview .audio-toggle__state {
+  min-width: 0;
+}
+
+.roots-preview__reverse {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  margin-top: var(--space-4);
+}
+
+.roots-preview__reverse input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--color-primary);
+}
+
+.roots-preview a:focus-visible,
+.roots-preview__reverse input:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.roots-preview__status {
+  min-height: 3.3em;
+}
+
+@media (min-width: 768px) {
+  .roots-preview__layout {
+    margin-block: var(--space-8);
+  }
+
+  .roots-preview__panel {
+    padding: var(--space-6);
+  }
+
+  .roots-preview__ride {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .roots-preview .audio-toggle {
+    flex-direction: row;
+    justify-content: space-between;
+    padding-inline: var(--space-4);
+  }
+}

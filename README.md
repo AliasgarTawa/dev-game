@@ -16,7 +16,7 @@ The whole game is made from **one 12-metre stretch of road**.
 
 That stretch is a splat tile of about half a million points. The game repeats it and bends it into a 1.4 km circuit. A loop that short should get boring in seconds. It doesn't, because the view keeps changing:
 
-1. **One shape, five looks.** The same passage was restyled five times: mossy roots by day, the same roots glowing at night, frozen, neon, and painted countryside. Every look keeps the exact shape of the first one.
+1. **One shape, five looks.** The original passage, mossy roots by day, was restyled four more times: the same roots glowing at night, frozen, neon, and painted countryside. Every look keeps the exact shape of the first one.
 2. **So worlds can swap in place.** Because the shapes match, the game can replace one world with another while you are moving. The new world rains in from the top, splat by splat, and the old one fades out. It takes one second. The bike under you, the music and the roadside props change with it.
 3. **The ride never stops.** The track, the stones you can hit, the physics and your lap time stay exactly the same through a switch. Only what you see and hear changes.
 

@@ -4,9 +4,11 @@
 
 A bike game that runs in the browser, built from 3D Gaussian splats by **Arjun Behl and Ali**.
 
-![One ride through all five worlds](docs/media/five-worlds.gif)
+[![Watch the full Dune Rush demo](docs/media/five-worlds.gif)](https://drive.google.com/file/d/1i5IOV2fZ__yzW28d4k0ejvLv2-s9DbPW/view?usp=drivesdk)
 
-*One ride, five worlds, no cuts. Recorded from the game.*
+**[▶ Watch the full demo — 1:13, with audio](https://drive.google.com/file/d/1i5IOV2fZ__yzW28d4k0ejvLv2-s9DbPW/view?usp=drivesdk)**
+
+*Click the preview or the link above to watch the video on Google Drive.*
 
 [Play it](#play-it) · [The idea](#the-idea-never-the-same-view-for-long) · [Numbers](#the-numbers)
 

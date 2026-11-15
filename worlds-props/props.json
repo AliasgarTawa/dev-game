@@ -1,0 +1,1157 @@
+{
+ "day/1": {
+  "world": "day",
+  "slot": 1,
+  "slug": "root-watchtower",
+  "size": "large",
+  "file": "day/01-root-watchtower.glb",
+  "suggested_m": 5,
+  "min": [
+   -0.9352,
+   -0.9519,
+   -0.8765
+  ],
+  "max": [
+   0.9457,
+   0.9525,
+   0.9081
+  ],
+  "tris": 8999,
+  "tris_source": 30012,
+  "bytes": 472092
+ },
+ "day/2": {
+  "world": "day",
+  "slot": 2,
+  "slug": "forest-shrine",
+  "size": "large",
+  "file": "day/02-forest-shrine.glb",
+  "suggested_m": 4,
+  "min": [
+   -0.9388,
+   -0.8933,
+   -0.6054
+  ],
+  "max": [
+   0.9473,
+   0.8892,
+   0.5912
+  ],
+  "tris": 13508,
+  "tris_source": 29125,
+  "bytes": 628100
+ },
+ "day/3": {
+  "world": "day",
+  "slot": 3,
+  "slug": "hollow-log-lodge",
+  "size": "large",
+  "file": "day/03-hollow-log-lodge.glb",
+  "suggested_m": 3,
+  "min": [
+   -0.6802,
+   -0.5591,
+   -0.8153
+  ],
+  "max": [
+   0.6578,
+   0.5561,
+   0.943
+  ],
+  "tris": 9000,
+  "tris_source": 30532,
+  "bytes": 493156
+ },
+ "day/4": {
+  "world": "day",
+  "slot": 4,
+  "slug": "root-finish-gate",
+  "size": "large",
+  "file": "day/04-root-finish-gate.glb",
+  "suggested_m": 5,
+  "min": [
+   -0.9477,
+   -0.7853,
+   -0.3995
+  ],
+  "max": [
+   0.9507,
+   0.7848,
+   0.3932
+  ],
+  "tris": 8990,
+  "tris_source": 31233,
+  "bytes": 429400
+ },
+ "day/5": {
+  "world": "day",
+  "slot": 5,
+  "slug": "supply-cart",
+  "size": "medium",
+  "file": "day/05-supply-cart.glb",
+  "suggested_m": 1.5,
+  "min": [
+   -0.9391,
+   -0.8843,
+   -0.7025
+  ],
+  "max": [
+   0.9433,
+   0.9015,
+   0.6901
+  ],
+  "tris": 4499,
+  "tris_source": 15021,
+  "bytes": 208812
+ },
+ "day/6": {
+  "world": "day",
+  "slot": 6,
+  "slug": "acorn-lantern-post",
+  "size": "medium",
+  "file": "day/06-acorn-lantern-post.glb",
+  "suggested_m": 2,
+  "min": [
+   -0.5299,
+   -0.9503,
+   -0.671
+  ],
+  "max": [
+   0.5386,
+   0.9395,
+   0.6743
+  ],
+  "tris": 4500,
+  "tris_source": 15207,
+  "bytes": 188844
+ },
+ "day/7": {
+  "world": "day",
+  "slot": 7,
+  "slug": "mossy-milestone",
+  "size": "medium",
+  "file": "day/07-mossy-milestone.glb",
+  "suggested_m": 1.2,
+  "min": [
+   -0.6871,
+   -0.9519,
+   -0.3579
+  ],
+  "max": [
+   0.7004,
+   0.947,
+   0.3582
+  ],
+  "tris": 4498,
+  "tris_source": 15419,
+  "bytes": 169440
+ },
+ "day/8": {
+  "world": "day",
+  "slot": 8,
+  "slug": "leaf-finish-flag",
+  "size": "small",
+  "file": "day/08-leaf-finish-flag.glb",
+  "suggested_m": 0.9,
+  "min": [
+   -0.6935,
+   -0.9514,
+   -0.4058
+  ],
+  "max": [
+   0.6867,
+   0.9502,
+   0.4128
+  ],
+  "tris": 2500,
+  "tris_source": 5084,
+  "bytes": 132768
+ },
+ "day/9": {
+  "world": "day",
+  "slot": 9,
+  "slug": "mushroom-stump",
+  "size": "small",
+  "file": "day/09-mushroom-stump.glb",
+  "suggested_m": 0.5,
+  "min": [
+   -0.9204,
+   -0.6267,
+   -0.943
+  ],
+  "max": [
+   0.9374,
+   0.6239,
+   0.9476
+  ],
+  "tris": 2499,
+  "tris_source": 5108,
+  "bytes": 144252
+ },
+ "day/10": {
+  "world": "day",
+  "slot": 10,
+  "slug": "acorn-trophy",
+  "size": "small",
+  "file": "day/10-acorn-trophy.glb",
+  "suggested_m": 0.4,
+  "min": [
+   -0.8277,
+   -0.9519,
+   -0.4343
+  ],
+  "max": [
+   0.8226,
+   0.9499,
+   0.441
+  ],
+  "tris": 2499,
+  "tris_source": 5138,
+  "bytes": 142120
+ },
+ "night/1": {
+  "world": "night",
+  "slot": 1,
+  "slug": "moon-root-tower",
+  "size": "large",
+  "file": "night/01-moon-root-tower.glb",
+  "suggested_m": 5,
+  "min": [
+   -0.6196,
+   -0.9525,
+   -0.6382
+  ],
+  "max": [
+   0.6116,
+   0.9482,
+   0.6415
+  ],
+  "tris": 8984,
+  "tris_source": 31042,
+  "bytes": 471608
+ },
+ "night/2": {
+  "world": "night",
+  "slot": 2,
+  "slug": "luminous-mushroom-pavilion",
+  "size": "large",
+  "file": "night/02-luminous-mushroom-pavilion.glb",
+  "suggested_m": 4,
+  "min": [
+   -0.9134,
+   -0.8244,
+   -0.9519
+  ],
+  "max": [
+   0.9233,
+   0.8233,
+   0.9482
+  ],
+  "tris": 8990,
+  "tris_source": 30635,
+  "bytes": 445672
+ },
+ "night/3": {
+  "world": "night",
+  "slot": 3,
+  "slug": "moonstone-shrine",
+  "size": "large",
+  "file": "night/03-moonstone-shrine.glb",
+  "suggested_m": 3.5,
+  "min": [
+   -0.9302,
+   -0.952,
+   -0.7503
+  ],
+  "max": [
+   0.9282,
+   0.9489,
+   0.7761
+  ],
+  "tris": 8998,
+  "tris_source": 30540,
+  "bytes": 473548
+ },
+ "night/4": {
+  "world": "night",
+  "slot": 4,
+  "slug": "night-finish-gate",
+  "size": "large",
+  "file": "night/04-night-finish-gate.glb",
+  "suggested_m": 5,
+  "min": [
+   -0.9498,
+   -0.7388,
+   -0.3314
+  ],
+  "max": [
+   0.943,
+   0.6646,
+   0.3422
+  ],
+  "tris": 9089,
+  "tris_source": 30721,
+  "bytes": 548292
+ },
+ "night/5": {
+  "world": "night",
+  "slot": 5,
+  "slug": "crystal-beacon",
+  "size": "medium",
+  "file": "night/05-crystal-beacon.glb",
+  "suggested_m": 1.5,
+  "min": [
+   -0.6646,
+   -0.9517,
+   -0.6333
+  ],
+  "max": [
+   0.6696,
+   0.9499,
+   0.5827
+  ],
+  "tris": 4500,
+  "tris_source": 15474,
+  "bytes": 169240
+ },
+ "night/6": {
+  "world": "night",
+  "slot": 6,
+  "slug": "owl-lantern-statue",
+  "size": "medium",
+  "file": "night/06-owl-lantern-statue.glb",
+  "suggested_m": 1.4,
+  "min": [
+   -0.4644,
+   -0.9517,
+   -0.4783
+  ],
+  "max": [
+   0.4683,
+   0.9496,
+   0.4788
+  ],
+  "tris": 4497,
+  "tris_source": 15506,
+  "bytes": 176900
+ },
+ "night/7": {
+  "world": "night",
+  "slot": 7,
+  "slug": "night-supply-chest",
+  "size": "medium",
+  "file": "night/07-night-supply-chest.glb",
+  "suggested_m": 1,
+  "min": [
+   -0.9665,
+   -0.7741,
+   -0.7467
+  ],
+  "max": [
+   0.9655,
+   0.7794,
+   0.7398
+  ],
+  "tris": 4497,
+  "tris_source": 14546,
+  "bytes": 169768
+ },
+ "night/8": {
+  "world": "night",
+  "slot": 8,
+  "slug": "moon-finish-flag",
+  "size": "small",
+  "file": "night/08-moon-finish-flag.glb",
+  "suggested_m": 0.9,
+  "min": [
+   -0.6057,
+   -0.9516,
+   -0.326
+  ],
+  "max": [
+   0.6076,
+   0.9501,
+   0.3073
+  ],
+  "tris": 2499,
+  "tris_source": 5085,
+  "bytes": 144332
+ },
+ "night/9": {
+  "world": "night",
+  "slot": 9,
+  "slug": "glow-cap-stump",
+  "size": "small",
+  "file": "night/09-glow-cap-stump.glb",
+  "suggested_m": 0.5,
+  "min": [
+   -0.9114,
+   -0.8877,
+   -0.9526
+  ],
+  "max": [
+   0.9116,
+   0.8845,
+   0.9398
+  ],
+  "tris": 2498,
+  "tris_source": 4956,
+  "bytes": 144936
+ },
+ "night/10": {
+  "world": "night",
+  "slot": 10,
+  "slug": "moon-rune-stone",
+  "size": "small",
+  "file": "night/10-moon-rune-stone.glb",
+  "suggested_m": 0.45,
+  "min": [
+   -0.757,
+   -0.9498,
+   -0.3932
+  ],
+  "max": [
+   0.7584,
+   0.9507,
+   0.3931
+  ],
+  "tris": 2500,
+  "tris_source": 5133,
+  "bytes": 117048
+ },
+ "winter/1": {
+  "world": "winter",
+  "slot": 1,
+  "slug": "alpine-watchtower",
+  "size": "large",
+  "file": "winter/01-alpine-watchtower.glb",
+  "suggested_m": 5,
+  "min": [
+   -0.6286,
+   -0.9526,
+   -0.6141
+  ],
+  "max": [
+   0.6265,
+   0.9476,
+   0.6078
+  ],
+  "tris": 9000,
+  "tris_source": 29771,
+  "bytes": 511344
+ },
+ "winter/2": {
+  "world": "winter",
+  "slot": 2,
+  "slug": "rescue-cabin",
+  "size": "large",
+  "file": "winter/02-rescue-cabin.glb",
+  "suggested_m": 3,
+  "min": [
+   -0.7076,
+   -0.9254,
+   -0.9509
+  ],
+  "max": [
+   0.7116,
+   0.917,
+   0.9421
+  ],
+  "tris": 8989,
+  "tris_source": 30095,
+  "bytes": 505224
+ },
+ "winter/3": {
+  "world": "winter",
+  "slot": 3,
+  "slug": "frozen-obelisk",
+  "size": "large",
+  "file": "winter/03-frozen-obelisk.glb",
+  "suggested_m": 4,
+  "min": [
+   -0.647,
+   -0.952,
+   -0.6198
+  ],
+  "max": [
+   0.6457,
+   0.949,
+   0.6175
+  ],
+  "tris": 9000,
+  "tris_source": 30496,
+  "bytes": 433196
+ },
+ "winter/4": {
+  "world": "winter",
+  "slot": 4,
+  "slug": "winter-finish-gate",
+  "size": "large",
+  "file": "winter/04-winter-finish-gate.glb",
+  "suggested_m": 4.5,
+  "min": [
+   -0.9516,
+   -0.799,
+   -0.2739
+  ],
+  "max": [
+   0.9497,
+   0.7964,
+   0.2876
+  ],
+  "tris": 8999,
+  "tris_source": 30474,
+  "bytes": 498816
+ },
+ "winter/5": {
+  "world": "winter",
+  "slot": 5,
+  "slug": "supply-sled",
+  "size": "medium",
+  "file": "winter/05-supply-sled.glb",
+  "suggested_m": 1.5,
+  "min": [
+   -0.9468,
+   -0.6764,
+   -0.6363
+  ],
+  "max": [
+   0.9502,
+   0.6725,
+   0.6157
+  ],
+  "tris": 4499,
+  "tris_source": 15163,
+  "bytes": 207528
+ },
+ "winter/6": {
+  "world": "winter",
+  "slot": 6,
+  "slug": "alpine-trail-beacon",
+  "size": "medium",
+  "file": "winter/06-alpine-trail-beacon.glb",
+  "suggested_m": 1.7,
+  "min": [
+   -0.5049,
+   -0.9518,
+   -0.48
+  ],
+  "max": [
+   0.4985,
+   0.9499,
+   0.4801
+  ],
+  "tris": 4496,
+  "tris_source": 15262,
+  "bytes": 189652
+ },
+ "winter/7": {
+  "world": "winter",
+  "slot": 7,
+  "slug": "snowman-marshal",
+  "size": "medium",
+  "file": "winter/07-snowman-marshal.glb",
+  "suggested_m": 1.4,
+  "min": [
+   -0.6012,
+   -0.952,
+   -0.5567
+  ],
+  "max": [
+   0.6088,
+   0.948,
+   0.5484
+  ],
+  "tris": 4497,
+  "tris_source": 15559,
+  "bytes": 176976
+ },
+ "winter/8": {
+  "world": "winter",
+  "slot": 8,
+  "slug": "winter-finish-flag",
+  "size": "small",
+  "file": "winter/08-winter-finish-flag.glb",
+  "suggested_m": 0.9,
+  "min": [
+   -0.7729,
+   -0.9507,
+   -0.4193
+  ],
+  "max": [
+   0.7708,
+   0.9486,
+   0.4233
+  ],
+  "tris": 2499,
+  "tris_source": 5092,
+  "bytes": 155748
+ },
+ "winter/9": {
+  "world": "winter",
+  "slot": 9,
+  "slug": "snow-crate",
+  "size": "small",
+  "file": "winter/09-snow-crate.glb",
+  "suggested_m": 0.5,
+  "min": [
+   -0.9117,
+   -0.9166,
+   -0.943
+  ],
+  "max": [
+   0.9136,
+   0.9101,
+   0.9498
+  ],
+  "tris": 2499,
+  "tris_source": 4597,
+  "bytes": 81144
+ },
+ "winter/10": {
+  "world": "winter",
+  "slot": 10,
+  "slug": "ice-lantern",
+  "size": "small",
+  "file": "winter/10-ice-lantern.glb",
+  "suggested_m": 0.4,
+  "min": [
+   -0.6285,
+   -0.952,
+   -0.5987
+  ],
+  "max": [
+   0.6296,
+   0.936,
+   0.5912
+  ],
+  "tris": 2500,
+  "tris_source": 5157,
+  "bytes": 139156
+ },
+ "cyberpunk/1": {
+  "world": "cyberpunk",
+  "slot": 1,
+  "slug": "neon-relay-tower",
+  "size": "large",
+  "file": "cyberpunk/01-neon-relay-tower.glb",
+  "suggested_m": 5,
+  "min": [
+   -0.4918,
+   -0.9522,
+   -0.4937
+  ],
+  "max": [
+   0.4898,
+   0.9505,
+   0.4912
+  ],
+  "tris": 8995,
+  "tris_source": 28280,
+  "bytes": 428176
+ },
+ "cyberpunk/2": {
+  "world": "cyberpunk",
+  "slot": 2,
+  "slug": "neon-service-kiosk",
+  "size": "large",
+  "file": "cyberpunk/02-neon-service-kiosk.glb",
+  "suggested_m": 3,
+  "min": [
+   -0.8345,
+   -0.9517,
+   -0.7962
+  ],
+  "max": [
+   0.8292,
+   0.9516,
+   0.7988
+  ],
+  "tris": 8997,
+  "tris_source": 25330,
+  "bytes": 445912
+ },
+ "cyberpunk/3": {
+  "world": "cyberpunk",
+  "slot": 3,
+  "slug": "power-reactor",
+  "size": "large",
+  "file": "cyberpunk/03-power-reactor.glb",
+  "suggested_m": 3.5,
+  "min": [
+   -0.9497,
+   -0.8626,
+   -0.7466
+  ],
+  "max": [
+   0.9501,
+   0.8617,
+   0.7453
+  ],
+  "tris": 8987,
+  "tris_source": 29798,
+  "bytes": 423944
+ },
+ "cyberpunk/4": {
+  "world": "cyberpunk",
+  "slot": 4,
+  "slug": "neon-finish-gate",
+  "size": "large",
+  "file": "cyberpunk/04-neon-finish-gate.glb",
+  "suggested_m": 5,
+  "min": [
+   -0.9515,
+   -0.6658,
+   -0.2165
+  ],
+  "max": [
+   0.95,
+   0.6649,
+   0.2155
+  ],
+  "tris": 8999,
+  "tris_source": 25854,
+  "bytes": 421504
+ },
+ "cyberpunk/5": {
+  "world": "cyberpunk",
+  "slot": 5,
+  "slug": "charging-pedestal",
+  "size": "medium",
+  "file": "cyberpunk/05-charging-pedestal.glb",
+  "suggested_m": 1.5,
+  "min": [
+   -0.646,
+   -0.9517,
+   -0.481
+  ],
+  "max": [
+   0.6344,
+   0.9507,
+   0.4664
+  ],
+  "tris": 4499,
+  "tris_source": 13274,
+  "bytes": 165592
+ },
+ "cyberpunk/6": {
+  "world": "cyberpunk",
+  "slot": 6,
+  "slug": "cargo-drone-dock",
+  "size": "medium",
+  "file": "cyberpunk/06-cargo-drone-dock.glb",
+  "suggested_m": 1.4,
+  "min": [
+   -0.9352,
+   -0.4654,
+   -0.9215
+  ],
+  "max": [
+   0.9497,
+   0.4456,
+   0.927
+  ],
+  "tris": 4500,
+  "tris_source": 15371,
+  "bytes": 179024
+ },
+ "cyberpunk/7": {
+  "world": "cyberpunk",
+  "slot": 7,
+  "slug": "neon-road-barrier",
+  "size": "medium",
+  "file": "cyberpunk/07-neon-road-barrier.glb",
+  "suggested_m": 1.3,
+  "min": [
+   -0.9509,
+   -0.4255,
+   -0.2369
+  ],
+  "max": [
+   0.9507,
+   0.413,
+   0.2366
+  ],
+  "tris": 4500,
+  "tris_source": 11729,
+  "bytes": 103056
+ },
+ "cyberpunk/8": {
+  "world": "cyberpunk",
+  "slot": 8,
+  "slug": "neon-finish-flag",
+  "size": "small",
+  "file": "cyberpunk/08-neon-finish-flag.glb",
+  "suggested_m": 0.9,
+  "min": [
+   -0.8751,
+   -0.9518,
+   -0.4029
+  ],
+  "max": [
+   0.8736,
+   0.9504,
+   0.403
+  ],
+  "tris": 2499,
+  "tris_source": 4914,
+  "bytes": 128344
+ },
+ "cyberpunk/9": {
+  "world": "cyberpunk",
+  "slot": 9,
+  "slug": "power-cell-crate",
+  "size": "small",
+  "file": "cyberpunk/09-power-cell-crate.glb",
+  "suggested_m": 0.5,
+  "min": [
+   -0.9488,
+   -0.8218,
+   -0.875
+  ],
+  "max": [
+   0.9502,
+   0.8282,
+   0.8736
+  ],
+  "tris": 2499,
+  "tris_source": 4988,
+  "bytes": 124864
+ },
+ "cyberpunk/10": {
+  "world": "cyberpunk",
+  "slot": 10,
+  "slug": "neon-bollard",
+  "size": "small",
+  "file": "cyberpunk/10-neon-bollard.glb",
+  "suggested_m": 0.55,
+  "min": [
+   -0.6208,
+   -0.952,
+   -0.6645
+  ],
+  "max": [
+   0.6204,
+   0.9506,
+   0.6636
+  ],
+  "tris": 2499,
+  "tris_source": 5041,
+  "bytes": 116672
+ },
+ "ghibli/1": {
+  "world": "ghibli",
+  "slot": 1,
+  "slug": "countryside-windmill",
+  "size": "large",
+  "file": "ghibli/01-countryside-windmill.glb",
+  "suggested_m": 5,
+  "min": [
+   -0.7894,
+   -0.9527,
+   -0.691
+  ],
+  "max": [
+   0.7896,
+   0.9497,
+   0.6851
+  ],
+  "tris": 8992,
+  "tris_source": 30710,
+  "bytes": 443728
+ },
+ "ghibli/2": {
+  "world": "ghibli",
+  "slot": 2,
+  "slug": "roadside-bakery",
+  "size": "large",
+  "file": "ghibli/02-roadside-bakery.glb",
+  "suggested_m": 3,
+  "min": [
+   -0.853,
+   -0.895,
+   -0.9487
+  ],
+  "max": [
+   0.8566,
+   0.8858,
+   0.9391
+  ],
+  "tris": 8995,
+  "tris_source": 30613,
+  "bytes": 542364
+ },
+ "ghibli/3": {
+  "world": "ghibli",
+  "slot": 3,
+  "slug": "harvest-waterwheel",
+  "size": "large",
+  "file": "ghibli/03-harvest-waterwheel.glb",
+  "suggested_m": 3,
+  "min": [
+   -0.898,
+   -0.9507,
+   -0.6441
+  ],
+  "max": [
+   0.9009,
+   0.9488,
+   0.6439
+  ],
+  "tris": 8998,
+  "tris_source": 30375,
+  "bytes": 466032
+ },
+ "ghibli/4": {
+  "world": "ghibli",
+  "slot": 4,
+  "slug": "harvest-finish-gate",
+  "size": "large",
+  "file": "ghibli/04-harvest-finish-gate.glb",
+  "suggested_m": 4.5,
+  "min": [
+   -0.9516,
+   -0.823,
+   -0.2798
+  ],
+  "max": [
+   0.9515,
+   0.8225,
+   0.2802
+  ],
+  "tris": 8999,
+  "tris_source": 29291,
+  "bytes": 434888
+ },
+ "ghibli/5": {
+  "world": "ghibli",
+  "slot": 5,
+  "slug": "flower-cart",
+  "size": "medium",
+  "file": "ghibli/05-flower-cart.glb",
+  "suggested_m": 1.6,
+  "min": [
+   -0.9296,
+   -0.9086,
+   -0.5458
+  ],
+  "max": [
+   0.8852,
+   0.9084,
+   0.5132
+  ],
+  "tris": 7142,
+  "tris_source": 13380,
+  "bytes": 309420
+ },
+ "ghibli/6": {
+  "world": "ghibli",
+  "slot": 6,
+  "slug": "countryside-mailbox",
+  "size": "medium",
+  "file": "ghibli/06-countryside-mailbox.glb",
+  "suggested_m": 1.3,
+  "min": [
+   -0.3977,
+   -0.9513,
+   -0.4849
+  ],
+  "max": [
+   0.397,
+   0.9509,
+   0.4865
+  ],
+  "tris": 4500,
+  "tris_source": 14406,
+  "bytes": 157952
+ },
+ "ghibli/7": {
+  "world": "ghibli",
+  "slot": 7,
+  "slug": "picnic-bench",
+  "size": "medium",
+  "file": "ghibli/07-picnic-bench.glb",
+  "suggested_m": 1,
+  "min": [
+   -0.854,
+   -0.5721,
+   -0.9521
+  ],
+  "max": [
+   0.8609,
+   0.5864,
+   0.9496
+  ],
+  "tris": 4499,
+  "tris_source": 14065,
+  "bytes": 176268
+ },
+ "ghibli/8": {
+  "world": "ghibli",
+  "slot": 8,
+  "slug": "countryside-finish-flag",
+  "size": "small",
+  "file": "ghibli/08-countryside-finish-flag.glb",
+  "suggested_m": 0.9,
+  "min": [
+   -0.71,
+   -0.9517,
+   -0.3327
+  ],
+  "max": [
+   0.7098,
+   0.9503,
+   0.3312
+  ],
+  "tris": 2500,
+  "tris_source": 5086,
+  "bytes": 107160
+ },
+ "ghibli/9": {
+  "world": "ghibli",
+  "slot": 9,
+  "slug": "sunflower-planter",
+  "size": "small",
+  "file": "ghibli/09-sunflower-planter.glb",
+  "suggested_m": 0.6,
+  "min": [
+   -0.6558,
+   -0.9496,
+   -0.5111
+  ],
+  "max": [
+   0.6547,
+   0.9496,
+   0.5092
+  ],
+  "tris": 2499,
+  "tris_source": 5228,
+  "bytes": 133644
+ },
+ "ghibli/10": {
+  "world": "ghibli",
+  "slot": 10,
+  "slug": "harvest-basket",
+  "size": "small",
+  "file": "ghibli/10-harvest-basket.glb",
+  "suggested_m": 0.45,
+  "min": [
+   -0.9341,
+   -0.8992,
+   -0.8041
+  ],
+  "max": [
+   0.9336,
+   0.901,
+   0.8071
+  ],
+  "tris": 2500,
+  "tris_source": 5102,
+  "bytes": 142408
+ },
+ "day/11": {
+  "world": "day",
+  "slot": 11,
+  "slug": "rock",
+  "size": "rock",
+  "file": "day/11-rock.glb",
+  "suggested_m": 0.15,
+  "min": [
+   -0.2993,
+   0,
+   -0.225
+  ],
+  "max": [
+   0.2996,
+   0.1497,
+   0.2246
+  ],
+  "tris": 1500,
+  "tris_source": 3085,
+  "bytes": 75984
+ },
+ "night/11": {
+  "world": "night",
+  "slot": 11,
+  "slug": "rock",
+  "size": "rock",
+  "file": "night/11-rock.glb",
+  "suggested_m": 0.15,
+  "min": [
+   -0.3,
+   0,
+   -0.225
+  ],
+  "max": [
+   0.3,
+   0.15,
+   0.225
+  ],
+  "tris": 1500,
+  "tris_source": 3022,
+  "bytes": 60072
+ },
+ "winter/11": {
+  "world": "winter",
+  "slot": 11,
+  "slug": "rock",
+  "size": "rock",
+  "file": "winter/11-rock.glb",
+  "suggested_m": 0.15,
+  "min": [
+   -0.3,
+   0,
+   -0.2242
+  ],
+  "max": [
+   0.3,
+   0.15,
+   0.225
+  ],
+  "tris": 1500,
+  "tris_source": 2977,
+  "bytes": 77028
+ },
+ "cyberpunk/11": {
+  "world": "cyberpunk",
+  "slot": 11,
+  "slug": "rock",
+  "size": "rock",
+  "file": "cyberpunk/11-rock.glb",
+  "suggested_m": 0.15,
+  "min": [
+   -0.3,
+   0,
+   -0.225
+  ],
+  "max": [
+   0.3,
+   0.15,
+   0.225
+  ],
+  "tris": 1499,
+  "tris_source": 2897,
+  "bytes": 65812
+ },
+ "ghibli/11": {
+  "world": "ghibli",
+  "slot": 11,
+  "slug": "rock",
+  "size": "rock",
+  "file": "ghibli/11-rock.glb",
+  "suggested_m": 0.15,
+  "min": [
+   -0.2993,
+   0,
+   -0.225
+  ],
+  "max": [
+   0.3,
+   0.15,
+   0.2248
+  ],
+  "tris": 1500,
+  "tris_source": 3060,
+  "bytes": 58472
+ }
+}

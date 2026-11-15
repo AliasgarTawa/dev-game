@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fantasy road sections · splats from local video</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dune Rush</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#151817;color:#f8f6ef;font:14px system-ui}canvas{display:block;touch-action:none}
 #panel{z-index:3;position:absolute;top:20px;left:20px;padding:18px;border:1px solid #ffffff26;border-radius:16px;background:#14201eeb;max-width:380px}
@@ -34,7 +34,7 @@ button.active{background:#d9ecc0;color:#14201e}#status{color:#cfe3b4;margin:6px 
 // fantasy-scenes.json lists the scenes; each scene's JSON (from lane_review.py) holds the filmed path, the up axis, scene units per
 // metre (from an assumed 1.6 m camera height) and the corridor the review supports: half-width, height range, turn limit, ride-on past the end.
 import * as THREE from 'three';
-import {SparkRenderer,SplatMesh,dyno} from '@sparkjsdev/spark';import {createRider} from './fantasy-rider.js';import {createAudio} from './fantasy-audio.js';
+import {SparkRenderer,SplatMesh,dyno} from '@sparkjsdev/spark';import {createRider} from './fantasy-rider.js?v=1794758073';import {createAudio} from './fantasy-audio.js?v=1794758073';import {createProps} from './fantasy-props.js?v=1794758073';
 const $=id=>document.getElementById(id),status=$('status');
 window.addEventListener('unhandledrejection',e=>status.textContent='Load error: '+e.reason);
 const params=new URLSearchParams(location.search);
@@ -53,7 +53,15 @@ const camera=new THREE.PerspectiveCamera(vfov,innerWidth/innerHeight,(+params.ge
 const renderer=new THREE.WebGLRenderer({antialias:false});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);document.body.prepend(renderer.domElement);
 const matched=params.get('aa')!=='0';
 const maxPx=+params.get('maxpx')||cfg.max_pixel_radius||512;    // cap on a splat's on-screen radius (Spark default 512 px)
-const spark=new SparkRenderer({renderer,enableLod:false,preBlurAmount:matched?.3:0,blurAmount:matched?0:.3,maxPixelRadius:maxPx});scene.add(spark);
+// Level of detail (?lod=1, ?lodn=splat budget): tiles are loaded with a detail tree and the renderer draws at most LOD_N splats per frame, coarser far away.
+// The detail is picked in the renderer's 'dynamic' mode: measured here, one pick took 0.2 to 0.3 s against 0.8 to 1.5 s in the
+// default mode, where the answer arrived 10 m of riding late and the view only sharpened once the bike stopped.
+// The budget is spent where the rider looks: full detail inside a 70 degree cone, falling to a quarter by 105 degrees and
+// to 6% behind (the renderer's defaults are 90, 120, 40% and 20%). The ride view is about 60 degrees wide and turns 15 at most.
+const LOD=params.get('lod')?params.get('lod')==='1':!!cfg.worlds,LOD_N=+params.get('lodn')||1.2e6;      // on for the worlds scene (?lod=0 turns it off)
+// Sharpness: the blur added to every splat before drawing. 0.3 matched how the splats were trained; 0.18 is crisper (edges
+// measured 16% stronger at 0.12, with a little more grain), and costs nothing. ?preblur=0.3 puts the old value back.
+const spark=new SparkRenderer({renderer,enableLod:LOD,...(LOD?{lodSplatCount:LOD_N,lodTraverseMode:params.get('lodmode')||'dynamic',behindFoveate:.06,coneFov0:70,coneFov:105,coneFoveate:.25}:{}),preBlurAmount:matched?(params.get('preblur')!==null?+params.get('preblur'):.18):0,blurAmount:matched?0:.3,maxPixelRadius:maxPx});scene.add(spark);
 // Endless loop (scenes whose JSON has "loop"; ?loop=0 or the Loop button turns it off): copies of one cropped period of the
 // passage (make_loop_tile.py) are laid end to end, T apart along the filmed direction, cross-fading over the overlap. The camera
 // is moved back by T when it passes the end of the period (forward by T when it backs past the start), so it never leaves the
@@ -112,21 +120,50 @@ const wrapS=fs=>LOOP&&!LU?((fs%W)+W)%W:fs;
 // Worlds (scene JSON "worlds", with an unwrapped loop): each world is its own repeating tile with its own period, copies, origin
 // and precision, all driven by the one ride; the Look buttons switch world with the rainfall reveal. Lane and turn limits come from
 // the world (eased on a switch, the narrower of the two during it); the sky dome fades with the reveal.
-const WORLDS=LU&&cfg.worlds&&!(params.get('ply')||'').match(/^[\w.-]+\.(ply|spz)$/)?cfg.worlds:null;
+const WORLDS=LU&&cfg.worlds&&!(params.get('ply')||'').match(/^[\w.-]+\.(ply|spz)$/)?(params.get('worlds')?cfg.worlds.filter(w=>params.get('worlds').split(',').includes(w.id)):cfg.worlds):null;      // ?worlds=day,night loads only those (for tests)
+// Each world has its own vehicle (fantasy-rider.js) and its own sound (fantasy-audio.js); a world's "like" in the JSON is no longer used.
+// The worlds ride on lightened tiles (runs/desert-2026-11-14/worlds/lighten_tiles.py: no nearly transparent splats, none far
+// outside what the rider can see); ?light=0 rides on the original tiles, to compare.
+if(WORLDS&&params.get('light')==='0')for(const w of WORLDS)if(w.tile_ply_full)w.tile_ply=w.tile_ply_full;
+// ?tile=winter:some-file.ply,cyberpunk:other.ply rides a world on another tile file from this folder (for tests)
+if(WORLDS&&params.get('tile'))for(const p of params.get('tile').split(',')){const [id,f]=p.split(':'),w=WORLDS.find(t=>t.id===id);if(w&&/^[\w.-]+\.ply$/.test(f||''))w.tile_ply='./'+f;}
+// ?wcopies=-1,0,1,2,3 overrides how many copies of the tile each world keeps in a row (for tests)
+if(WORLDS&&params.get('wcopies'))for(const w of WORLDS)w.copies=params.get('wcopies').split(',').map(Number);
 // three-worlds scene: bike and mascot in a foreground pass (fantasy-rider.js); ?rider=0 turns it off. Any failure drops the rider, never the page.
 let splatsIn;const splatsInP=new Promise(r=>splatsIn=r);
-let rider=null;try{if(WORLDS&&params.get('rider')!=='0')rider=createRider(renderer,{after:splatsInP})}catch(e){console.error(e)}
+let rider=null,riderIn=false;try{if(WORLDS&&params.get('rider')!=='0')rider=createRider(renderer,{after:splatsInP,worlds:WORLDS.map(w=>w.id)})}catch(e){console.error(e)}
+if(rider)rider.ready.then(()=>{riderIn=true});else riderIn=true;
 // three-worlds scene: sound (fantasy-audio.js; ?sound=0 turns it off), and Space / the button to ride on its own (?go=1 starts riding, as the opening page does).
 let sound=null;const CRUISE=7;
-let hudFrame=()=>{};
+let hudFrame=()=>{},resFrame=()=>{},opening=false,openFrame=()=>{};
+// ---- Lap times ----
+// A lap is timed in ride time (the physics steps' own dt, so a slow frame rate does not change it), from the start line to
+// the next time the line is crossed going forward; the crossing moment is placed inside the step it falls in. The first lap
+// is a standing start. A lap only counts if it began on the line and the bike was not moved by anything but riding.
+// The best lap is kept in the browser (localStorage, one per track length); ?laps=reset forgets it.
+const LAP={len:0,t:0,idx:0,run:false,valid:true,prev:null,last:0,lastN:0,best:0,isBest:false,doneAt:-1e9,laps:[],key:''};
+const lapFmt=t=>{if(!(t>0))return '–:––.––';const c=Math.floor(t*100+1e-6),m=Math.floor(c/6000),r=c-m*6000;return m+':'+String(Math.floor(r/100)).padStart(2,'0')+'.'+String(r%100).padStart(2,'0')};
+function lapInit(lenM){LAP.len=lenM;LAP.key='dune-best-lap-1:'+Math.round(lenM);try{if(params.get('laps')==='reset')localStorage.removeItem(LAP.key);const v=+localStorage.getItem(LAP.key);if(v>5&&v<3600)LAP.best=v}catch(e){}}
+function lapReset(a=0){LAP.t=0;LAP.run=false;LAP.prev=null;if(LAP.len){LAP.idx=Math.floor(a/LAP.len+1e-6);LAP.valid=Math.abs(a-LAP.idx*LAP.len)<.5}}
+function lapStep(dt,a0,a1){if(!LAP.len||opening||!(dt>0))return;
+ if((LAP.prev!==null&&Math.abs(a0-LAP.prev)>1)||Math.abs(a1-a0)>6){LAP.valid=false;LAP.run=true;LAP.t=0;LAP.idx=Math.floor(a1/LAP.len)}
+ LAP.prev=a1;
+ if(!LAP.run){if(a1-a0>1e-5)LAP.run=true;else return}
+ LAP.t+=dt;const k=Math.floor(a1/LAP.len);
+ if(k>LAP.idx){const f=Math.max(0,Math.min(1,(k*LAP.len-a0)/Math.max(a1-a0,1e-9))),time=Math.round((LAP.t-dt*(1-f))*1000)/1000;
+  if(LAP.valid&&time>5){LAP.last=time;LAP.lastN=k;LAP.isBest=!LAP.best||time<LAP.best;LAP.doneAt=performance.now();LAP.laps.push({lap:k,time,world:typeof styleId==='string'?styleId:''});
+   if(LAP.isBest){LAP.best=time;try{localStorage.setItem(LAP.key,String(time))}catch(e){}}}
+  LAP.t=dt*(1-f);LAP.idx=k;LAP.valid=true}
+ else if(k<LAP.idx-1){LAP.idx=k;LAP.valid=false}}
+window.__laps=LAP;
 if(WORLDS){   // only the three worlds, as a game HUD: a picture card per world (each world's `image` in fantasy-worlds.json; swap the files in worlds-ui/ to change them), and round icon buttons for ride, sound and menu
  const IC={play:'<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',pause:'<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>',
   on:'<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/><path d="M14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>',
   off:'<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M22 9.4 20.6 8 18 10.6 15.4 8 14 9.4l2.6 2.6-2.6 2.6 1.4 1.4 2.6-2.6 2.6 2.6 1.4-1.4-2.6-2.6z"/></svg>',
   menu:'<svg viewBox="0 0 24 24"><path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5z"/></svg>'};
  document.head.appendChild(document.createElement('style')).textContent=`#panel{display:none!important}
-#worldbar{position:fixed;left:16px;top:16px;display:flex;gap:10px;z-index:5}
-.wcard{position:relative;width:148px;height:86px;padding:0;margin:0;border:2px solid rgba(255,255,255,.28);border-radius:12px;overflow:hidden;cursor:pointer;background:#141c1a center/cover no-repeat;box-shadow:0 4px 14px rgba(0,0,0,.35);transition:transform .15s,border-color .15s,box-shadow .15s;font:inherit}
+#worldbar{position:fixed;left:16px;top:16px;display:flex;flex-wrap:wrap;gap:8px;z-index:5;max-width:calc(100vw - 150px)}
+.wcard{position:relative;width:124px;height:72px;padding:0;margin:0;border:2px solid rgba(255,255,255,.28);border-radius:12px;overflow:hidden;cursor:pointer;background:#141c1a center/cover no-repeat;box-shadow:0 4px 14px rgba(0,0,0,.35);transition:transform .15s,border-color .15s,box-shadow .15s;font:inherit}
 .wcard span{position:absolute;left:0;right:0;bottom:0;padding:16px 8px 6px;font-size:12px;font-weight:600;color:#fff;text-align:left;background:linear-gradient(transparent,rgba(0,0,0,.78))}
 .wcard:hover{transform:translateY(-2px)}
 .wcard.sel{border-color:#d9ecc0;box-shadow:0 0 0 3px rgba(217,236,192,.45),0 4px 14px rgba(0,0,0,.4)}
@@ -136,43 +173,170 @@ if(WORLDS){   // only the three worlds, as a game HUD: a picture card per world 
 .wicon svg{width:22px;height:22px;fill:currentColor}
 .wicon.sel{background:#d9ecc0;color:#14201e}
 .wicon.muted{color:#ffb4a8}
+#wmap{position:fixed;right:16px;bottom:16px;z-index:5;padding:8px 8px 6px;border-radius:14px;background:rgba(12,16,14,.42);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);pointer-events:none;color:rgba(255,255,255,.85);font:600 11px/1.2 system-ui,sans-serif;text-align:center;text-shadow:0 1px 3px #000;font-variant-numeric:tabular-nums}#wmap canvas{display:block;margin:0 auto 4px}#wlapt{margin-top:5px;font:800 20px/1 system-ui,sans-serif;color:#fff;letter-spacing:.01em}#wlapl,#wlapb{margin-top:3px;font-weight:700}#wlapb{color:#ffd27a}#wlapb.new{color:#fff;background:#d98a1f;border-radius:6px;padding:2px 6px;display:inline-block;text-shadow:none}#wlapdone{position:fixed;left:50%;top:21%;transform:translate(-50%,0);z-index:6;pointer-events:none;text-align:center;color:#fff;font:800 clamp(24px,5vw,40px)/1.05 system-ui,sans-serif;text-shadow:0 2px 10px rgba(0,0,0,.8);font-variant-numeric:tabular-nums;opacity:0;transition:opacity .35s}#wlapdone.on{opacity:1}#wlapdone small{display:block;margin-bottom:6px;font-size:.38em;font-weight:700;letter-spacing:.28em;text-indent:.28em;text-transform:uppercase;opacity:.9}#wlapdone b{display:block;margin-top:7px;font-size:.4em;letter-spacing:.2em;text-indent:.2em;text-transform:uppercase;color:#ffd27a}body.opening #wlapdone{display:none}
 #whint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);font-size:12px;color:rgba(255,255,255,.8);text-shadow:0 1px 3px #000;z-index:5;pointer-events:none;white-space:nowrap}
+#wspeed{position:fixed;left:18px;bottom:14px;z-index:5;color:#fff;font:700 30px/1 system-ui,sans-serif;text-shadow:0 1px 4px #000;font-variant-numeric:tabular-nums;pointer-events:none}#wspeed small{font-size:12px;font-weight:600;opacity:.8;margin-left:4px}#wspeed b{display:inline-block;margin-left:12px;min-width:26px;padding:3px 6px;border-radius:7px;background:rgba(12,16,14,.5);font-size:17px;text-align:center;vertical-align:4px}
+#wrev{position:fixed;left:18px;bottom:70px;z-index:5;width:150px;height:5px;border-radius:3px;background:rgba(255,255,255,.22);overflow:hidden;pointer-events:none}#wrev i{display:block;height:100%;width:0;background:#ffd27a}#wrev.hot i{background:#ff6a2b}
+#wnote{position:fixed;left:18px;bottom:84px;z-index:5;color:#ffd27a;font:700 12px/1 system-ui,sans-serif;text-shadow:0 1px 3px #000;pointer-events:none;display:none}
+#whit{position:fixed;inset:0;z-index:4;pointer-events:none;opacity:0}#wcrash{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:6;color:#fff;font:800 34px/1.1 system-ui,sans-serif;text-shadow:0 2px 10px #000;pointer-events:none;display:none;text-align:center}#wcrash small{display:block;font-size:14px;font-weight:600;opacity:.85;margin-top:6px}
+#wfps{position:fixed;left:18px;bottom:50px;z-index:5;color:rgba(255,255,255,.7);font:600 11px/1 system-ui,sans-serif;text-shadow:0 1px 3px #000;font-variant-numeric:tabular-nums;pointer-events:none}
 #wstatus{position:fixed;left:16px;top:114px;font-size:12px;color:#fff;background:rgba(20,32,30,.78);padding:4px 10px;border-radius:999px;z-index:5;display:none}
-@media(max-width:640px){.wcard{width:98px;height:60px}.wcard span{font-size:10px;padding:10px 6px 4px}#wicons{top:auto;bottom:44px}#wstatus{top:86px}#whint{font-size:10px}}`;
+@media(max-width:640px){#wlapt{font-size:17px;margin-top:4px}#wnote{bottom:106px}#wrev{bottom:94px;width:120px}#wcrash{font-size:26px}#wmap{top:14px;bottom:auto;right:12px;padding:6px;font-size:10px}#wfps{bottom:74px}#wspeed{bottom:44px;font-size:24px}.wcard{width:76px;height:46px}#worldbar{max-width:calc(100vw - 200px);gap:6px}.wcard span{font-size:10px;padding:10px 6px 4px}#wicons{top:auto;bottom:44px}#wstatus{top:86px}#whint{font-size:10px}}`;
  const loadImg=(url,done,tries=4)=>{const im=new Image();im.onload=()=>done(url);im.onerror=()=>{if(tries>1)setTimeout(()=>loadImg(url,done,tries-1),600)};im.src=url};
  const mk=(tag,props,parent)=>{const e=Object.assign(document.createElement(tag),props);parent.appendChild(e);return e};
  const bar=mk('div',{id:'worldbar'},document.body),icons=mk('div',{id:'wicons'},document.body),wstatus=mk('div',{id:'wstatus'},document.body);
  bar.setAttribute('role','group');bar.setAttribute('aria-label','World');
- mk('div',{id:'whint',textContent:'Space ride / pause · W S forward / back · A D steer · drag to look'},document.body);
+ mk('div',{id:'whint',textContent:'Hold W to ride · S brake · A D lean · Space cruise · drag to look'},document.body);
  const cards=WORLDS.map(w=>{const b=mk('button',{className:'wcard',type:'button',title:w.label},bar);loadImg(w.image||'./worlds-ui/'+w.id+'.webp',u=>{b.style.backgroundImage='url("'+u+'")'});mk('span',{textContent:w.label},b);b.onclick=()=>{chooseStyle(w.id);b.blur()};return {id:w.id,b}});
+ const wspeed=mk('div',{id:'wspeed'},document.body);wspeed.setAttribute('aria-label','Speed and gear');let hudKmh=-1,hudGear=0,hudRev=-1,hudFlash='',hudDown=false;
+ const wrev=mk('div',{id:'wrev'},document.body),wrevBar=mk('i',{},wrev),whit=mk('div',{id:'whit'},document.body),wcrash=mk('div',{id:'wcrash',innerHTML:'Crashed<small>back on the road in a moment</small>'},document.body);wrev.setAttribute('aria-hidden','true');const wnote=mk('div',{id:'wnote',textContent:'Running wide: tyres sliding'},document.body);let hudWide=false;
+ const wfps=params.get('fps')==='0'?null:mk('div',{id:'wfps'},document.body);let hudFps='';
  let hudCur=null,hudSt='';
- hudFrame=()=>{coverFrame();const cur=switchTo||styleId;if(cur!==hudCur){hudCur=cur;for(const c of cards){c.b.classList.toggle('sel',c.id===cur);c.b.setAttribute('aria-pressed',String(c.id===cur))}}
+ hudFrame=()=>{coverFrame();if(!!window.__cruise!==cb.classList.contains('sel'))setCruise(!!window.__cruise);const kmh=Math.round(Math.abs(bike.v)*3.6);if(kmh!==hudKmh||bike.gear!==hudGear){hudKmh=kmh;hudGear=bike.gear;wspeed.innerHTML=kmh+'<small>km/h</small><b>'+bike.gear+'</b>'}
+  const rv=Math.round(Math.min(1,bike.rpm)*40);if(rv!==hudRev){hudRev=rv;wrevBar.style.width=(rv*2.5)+'%';wrev.classList.toggle('hot',rv>=36)}
+  // a hit: a red glow on the side of the stone (all round when the bike is down), fading out
+  const fl=bike.flash>.03?Math.round(bike.flash*20)+'|'+bike.flashSide:'';if(fl!==hudFlash){hudFlash=fl;if(!fl)whit.style.opacity='0';else{whit.style.opacity=String(Math.min(.8,bike.flash*.8));whit.style.background=bike.flashSide===0?'radial-gradient(ellipse at 50% 50%,transparent 35%,rgba(200,30,20,.85) 100%)':'radial-gradient(ellipse at '+(bike.flashSide>0?'100%':'0%')+' 62%,rgba(255,70,30,.9),transparent 58%)'}}
+  const dn=bike.crashT>0;if(dn!==hudDown){hudDown=dn;wcrash.style.display=dn?'block':'none'}
+  const wide=!dn&&(hudWide?bike.scrub>.8:bike.scrub>1.3);if(wide!==hudWide){hudWide=wide;wnote.style.display=wide?'block':'none'}
+  if(wfps&&window.__fps){const t=window.__fps+' fps · '+(LOD?(spark.lodSplatCount/1e6).toFixed(2)+'M splats':'all splats')+' · '+renderer.getPixelRatio().toFixed(2)+'x'+(window.__px&&window.__px.ready?' · PhysX':'');if(t!==hudFps){hudFps=t;wfps.textContent=t}}
+ const cur=switchTo||styleId;if(cur!==hudCur){hudCur=cur;for(const c of cards){c.b.classList.toggle('sel',c.id===cur);c.b.setAttribute('aria-pressed',String(c.id===cur))}}
   const t=status.textContent;if(t!==hudSt){hudSt=t;const busyMsg=!/ready$/.test(t);wstatus.style.display=busyMsg?'block':'none';wstatus.textContent=busyMsg?t.replace(/^.*· /,''):''}};
- const cb=mk('button',{className:'wicon',type:'button'},icons),setCruise=v=>{window.__cruise=v?CRUISE:0;cb.innerHTML=v?IC.pause:IC.play;cb.title=v?'Pause riding (Space)':'Start riding (Space)';cb.setAttribute('aria-label',cb.title);cb.classList.toggle('sel',!!v)};
+ const cb=mk('button',{className:'wicon',type:'button'},icons),setCruise=v=>{window.__cruise=v?CRUISE:0;cb.innerHTML=v?IC.pause:IC.play;cb.title=v?'Cruise on: holds speed (Space)':'Cruise off (Space)';cb.setAttribute('aria-label',cb.title);cb.classList.toggle('sel',!!v)};
  cb.onclick=()=>{setCruise(!window.__cruise);cb.blur()};setCruise(false);
  // loading cover: the starting world's picture until the splats, the bike and the arms are in, then it fades into the ride (and riding starts if ?go=1)
  {const w0=WORLDS.find(w=>w.id===params.get('style'))||WORLDS.find(w=>w.id===cfg.default_world)||WORLDS[0],ci=document.getElementById('coverimg'),cm=document.getElementById('covermsg');
   if(ci)loadImg(w0.image||'./worlds-ui/'+w0.id+'.webp',u=>{ci.style.backgroundImage='url("'+u+'")';ci.classList.add('show')});
   if(cm)cm.textContent='Entering '+w0.label.replace(/\s*\(.*\)/,'')}
+ renderer.domElement.addEventListener('webglcontextlost',()=>{window.__lost={at:Math.round(performance.now()),world:styleId,switching:!!transition};wstatus.style.display='block';wstatus.textContent='Graphics were reset by the browser. Reload the page.';hudSt='lost'});
  let coverState=0,readyAt=0;
+ // Speed. Measured on this Mac (M3, 1440x900): frame time follows the number of splats drawn (about 12 ms per million),
+ // far more than the pixel count. So the game draws at 1x resolution with a splat budget (level of detail picks which), and
+ // when the frame rate stays under 45 for two seconds in a row it steps to a faster level. It steps back
+ // up once after ten seconds at the display's full rate, and stays down if that brings the slowness back. ?res= and ?lodn= fix either one.
+ // Levels run from sharpest to fastest: splat budget and render resolution (1x is half the sharpness of a Retina display).
+ // The level in use is remembered in this browser, so the next visit starts where this one settled.
+ {const fixedR=+params.get('res')||0,fixedN=+params.get('lodn')||0,levels=[[1.2e6,1.5],[1.2e6,1.25],[1.0e6,1.25],[1.0e6,1],[.85e6,1]];
+  // starts at 1.0M at 1x; a level is given up when the frame rate stays under 48, and a sharper one is tried only at 57 or
+  // more. The lowest level is 0.85M: below that the picture turns to mush (0.7M and 0.55M were tried as lower steps and
+  // the test pane sank to them), and the budget already falls with speed.
+  let lvl=3,slow=0,fast=0,upAt=-1e9,upAfter=0,upWait=30000;
+  try{const saved=+localStorage.getItem('dune-quality-level-4');if(Number.isInteger(saved)&&saved>=0&&saved<levels.length&&localStorage.getItem('dune-quality-level-4')!==null)lvl=saved}catch(e){}
+  const applyLevel=()=>{const [n,r]=levels[lvl];window.__lodBase=fixedN||n;if(LOD&&!fixedN)spark.lodSplatCount=n;if(!fixedR)renderer.setPixelRatio(Math.min(devicePixelRatio,r));try{localStorage.setItem('dune-quality-level-4',String(lvl))}catch(e){}};
+  if(fixedR)renderer.setPixelRatio(fixedR);applyLevel();
+  window.__res=()=>({ratio:renderer.getPixelRatio(),splatBudget:spark.lodSplatCount,level:lvl,lod:LOD});
+  let graceUntil=1e18,wasSwitching=false;
+  resFrame=(fps,windowMs)=>{const now=performance.now();if(coverState===2&&graceUntil===1e18)graceUntil=now+8000;if(transition)wasSwitching=true;else if(wasSwitching){wasSwitching=false;graceUntil=Math.max(graceUntil,now+3000)}
+   // skip loading, the first seconds of the ride (the other world is still being prepared), switches and a throttled tab
+   if(coverState!==2||transition||now<graceUntil||document.hidden||windowMs>1500||fps<8){slow=0;return}
+   slow=fps<48?slow+1:0;fast=fps>=57?fast+1:0;
+   // Down after 2 s under 45 fps. Back up after 8 s at 50 fps or more, so one dip does not leave the picture soft for the
+   // rest of the ride. If a step up brings the slowness back within 20 s, wait before trying again (1 min, doubling to 8).
+   if(slow>=2&&lvl<levels.length-1){lvl++;slow=0;fast=0;if(now-upAt<20000){upWait=Math.min(480000,upWait*2);upAfter=now+upWait}applyLevel()}
+   else if(fast>=8&&lvl>0&&now>=upAfter){lvl--;fast=0;upAt=now;applyLevel()}}}
  const coverFrame=()=>{if(coverState===2)return;if(!/ready$/.test(status.textContent))return;if(!readyAt){readyAt=performance.now();splatsIn()}
-  const assets=!rider||rider.state.loaded.length>=(params.get('arms')==='0'?2:3)||performance.now()-readyAt>6000;
+  const assets=riderIn||performance.now()-readyAt>8000;
   if(coverState===0&&assets){coverState=1;readyAt=performance.now()}
-  if(coverState===1&&performance.now()-readyAt>450){coverState=2;window.__liftCover&&window.__liftCover();setCruise(params.get('go')==='1');if(sound)sound.start()}};
- addEventListener('keydown',e=>{if(e.code==='Space'&&!e.repeat){e.preventDefault();setCruise(!window.__cruise)}});
- if(params.get('sound')!=='0'){const sb=mk('button',{className:'wicon',type:'button'},icons);
+  if(coverState===1&&performance.now()-readyAt>450){coverState=2;window.__liftCover&&window.__liftCover();if(OPENING)enterOpening(true);else{setCruise(params.get('cruise')==='1');if(sound)sound.start()}}};
+ addEventListener('keydown',e=>{if(e.code==='Space'&&!e.repeat&&!opening){e.preventDefault();setCruise(!window.__cruise)}});
+ if(params.get('sound')!=='0'){const sb=mk('button',{className:'wicon',type:'button',id:'wsound'},icons);
   const show=st=>{const on=st.enabled&&st.running;sb.innerHTML=on?IC.on:IC.off;sb.classList.toggle('muted',!on);sb.title=on?'Sound on: click to mute':st.enabled?'Sound is waiting: click to start it':'Sound off: click to turn on';sb.setAttribute('aria-label',sb.title);sb.setAttribute('aria-pressed',String(on))};
-  try{sound=createAudio({onState:show})}catch(e){console.error(e)}
+  try{sound=createAudio({onState:show,worlds:WORLDS.map(w=>w.id)})}catch(e){console.error(e)}
   if(sound){show(sound.state());sb.onclick=()=>{const st=sound.state();if(st.enabled&&!st.running)sound.start();else sound.setEnabled(!st.enabled);sb.blur()};
    const kick=e=>{if(e.target!==sb&&coverState===2)sound.start()};addEventListener('pointerdown',kick);addEventListener('keydown',kick);sound.start(false)}else sb.remove()}
- const home=mk('a',{className:'wicon',href:'/worlds-opening/',title:'Back to the menu',innerHTML:IC.menu},icons);home.setAttribute('aria-label','Back to the menu')}
+ const home=mk('button',{className:'wicon',type:'button',title:'Back to the opening',innerHTML:IC.menu},icons);home.setAttribute('aria-label','Back to the opening');home.onclick=()=>{enterOpening(false);home.blur()};
+ // ---- Opening ----
+ // The page opens on the worlds themselves, not on a separate menu: the game runs behind a title, with the bike and the HUD
+ // hidden, gliding along the track at cruising speed and changing world every nine seconds with the rain sweep, so all five
+ // are seen (and are already loaded when the ride starts). Pick a world on its card or with the arrow keys; Ride (Enter)
+ // dips to dark, puts the bike on the start line in the world showing, and hands over the controls. The round home button
+ // in the game comes back here. ?go=1 or ?open=0 skips it (tests use open=0).
+ const OPENING=params.get('go')!=='1'&&params.get('open')!=='0';
+ const OMETA={day:{acc:'#d9ecc0',kick:'Daylight',short:'Root',ride:'woodland bike',line:'Mossy roots and standing stones in warm light'},
+  night:{acc:'#7fe3ff',kick:'After dark',short:'Night',ride:'night bike',line:'The same passage lit by glowing runes'},
+  winter:{acc:'#dff1ff',kick:'Deep winter',short:'Frozen',ride:'snowmobile',line:'Frost, drifts and an alpine gate'},
+  cyberpunk:{acc:'#ff6ad9',kick:'Neon',short:'Neon',ride:'street bike',line:'Arches of light and a hum in the dark'},
+  ghibli:{acc:'#ffd27a',kick:'Painted',short:'Painted',ride:'vintage bike',line:'A countryside lane under an open sky'}};
+ document.head.appendChild(document.createElement('style')).textContent=`body.opening #worldbar,body.opening #wicons .wicon:not(#wsound),body.opening #wmap,body.opening #whint,body.opening #wspeed,body.opening #wrev,body.opening #wnote,body.opening #wfps,body.opening #wcrash,body.opening #whit,body.opening #wstatus{display:none!important}
+body.opening #wicons{z-index:25;top:14px;bottom:auto;right:14px}
+@media(max-width:620px){body.opening #wicons{top:auto;bottom:12px;right:12px}}
+#open{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;justify-content:space-between;align-items:center;color:#fff;--acc:#d9ecc0;font:14px/1.3 system-ui,sans-serif;text-align:center;transition:opacity .55s ease,visibility 0s linear 0s;-webkit-user-select:none;user-select:none}
+#open.gone{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .55s ease,visibility 0s linear .55s}
+#open::before{content:'';position:absolute;inset:0;background:linear-gradient(rgba(6,9,8,.74),rgba(6,9,8,0) 30%,rgba(6,9,8,0) 46%,rgba(6,9,8,.88));pointer-events:none}
+#open::after{content:'';position:absolute;inset:0;z-index:2;background:#060908;opacity:0;transition:opacity .3s ease;pointer-events:none}
+#open.dip::after{opacity:1}
+#open>*{position:relative;z-index:1}
+.o-top{padding:clamp(22px,6vh,64px) 16px 0}
+.o-logo{font-weight:800;font-size:clamp(34px,9.5vw,92px);line-height:.95;letter-spacing:.14em;text-indent:.14em;white-space:nowrap;text-shadow:0 2px 24px rgba(0,0,0,.6)}
+.o-logo span{display:inline-block;animation:o-in .7s cubic-bezier(.2,.8,.2,1) both}
+.o-rule{width:min(46vw,300px);height:3px;margin:14px auto 10px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--acc),transparent)}
+.o-tag{font-weight:600;letter-spacing:.32em;text-indent:.32em;text-transform:uppercase;font-size:clamp(10px,1.6vw,13px);opacity:.9;text-shadow:0 1px 6px #000}
+.o-bot{width:100%;padding:0 16px clamp(18px,4.5vh,44px);display:flex;flex-direction:column;align-items:center;gap:10px}
+.o-now{font-size:11px;font-weight:700;letter-spacing:.28em;text-indent:.28em;text-transform:uppercase;color:var(--acc);text-shadow:0 1px 4px #000}
+.o-world{font-size:clamp(24px,5vw,44px);font-weight:800;line-height:1.05;text-shadow:0 2px 14px rgba(0,0,0,.75)}
+.o-line{max-width:34em;font-size:clamp(12px,1.7vw,15px);opacity:.92;text-shadow:0 1px 5px #000}
+.o-best{margin-top:10px;font-weight:700;font-size:clamp(11px,1.5vw,13px);color:#ffd27a;text-shadow:0 1px 6px #000;font-variant-numeric:tabular-nums}.o-best:empty{display:none}
+.o-swap{animation:o-swap .6s ease both}
+#o-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(6px,1.2vw,12px);width:min(100%,760px);margin-top:4px}
+.o-card{position:relative;aspect-ratio:16/10;padding:0;margin:0;border:2px solid rgba(255,255,255,.3);border-radius:12px;overflow:hidden;background:#141c1a center/cover no-repeat;cursor:pointer;font:inherit;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.45);transition:transform .18s,border-color .3s,box-shadow .3s,opacity .3s}
+.o-card span{position:absolute;left:0;right:0;bottom:0;padding:14px 6px 5px;font-size:clamp(9px,1.25vw,12px);font-weight:700;text-align:left;background:linear-gradient(transparent,rgba(0,0,0,.82))}
+.o-card span b{font-weight:inherit}.o-short{display:none}
+@media(max-width:620px){.o-full{display:none}.o-short{display:inline}.o-card span{font-size:11px;padding:12px 6px 5px}}
+.o-card:hover{transform:translateY(-3px)}
+.o-card.sel{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 45%,transparent),0 8px 22px rgba(0,0,0,.5);transform:translateY(-3px)}
+.o-card.wait{opacity:.45;cursor:progress}
+.o-card:focus-visible,#o-go:focus-visible{outline:2px solid #fff;outline-offset:3px}
+#o-prog{width:min(100%,760px);height:2px;border-radius:2px;background:rgba(255,255,255,.18);overflow:hidden}
+#o-prog i{display:block;height:100%;width:0;background:var(--acc)}
+#o-go{margin:6px 0 0;padding:14px 46px;border-radius:999px;border:0;background:var(--acc);color:#0d1412;font:800 clamp(15px,2.2vw,19px)/1 system-ui,sans-serif;letter-spacing:.22em;text-indent:.22em;text-transform:uppercase;cursor:pointer;box-shadow:0 8px 28px rgba(0,0,0,.45);transition:transform .15s,background .6s}
+#o-go:hover{transform:scale(1.04)}
+.o-hint{font-size:11px;opacity:.78;text-shadow:0 1px 3px #000}
+.o-hint kbd{font:inherit;font-weight:700;padding:1px 5px;border:1px solid rgba(255,255,255,.4);border-radius:4px;margin:0 1px}
+@keyframes o-in{from{opacity:0;transform:translateY(.35em)}to{opacity:1;transform:none}}
+@keyframes o-swap{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media(max-height:600px){.o-line,.o-hint,.o-rule{display:none}.o-top{padding-top:14px}.o-logo{font-size:clamp(28px,7vw,60px)}.o-bot{gap:7px;padding-bottom:12px}#o-go{padding:11px 38px}}
+@media(prefers-reduced-motion:reduce){.o-logo span,.o-swap{animation:none}#open,#open::after{transition:none}}`;
+ const ov=mk('div',{id:'open',className:OPENING?'':'gone'},document.body);
+ ov.innerHTML='<div class="o-top"><div class="o-logo" role="heading" aria-level="1" aria-label="Dune Rush">'+[...'DUNE RUSH'].map((c,i)=>c===' '?' ':'<span aria-hidden="true" style="animation-delay:'+(i*55)+'ms">'+c+'</span>').join('')+'</div><div class="o-rule"></div><div class="o-tag">Five worlds · one track</div><div class="o-best"></div></div>'
+  +'<div class="o-bot"><div class="o-now"></div><div class="o-world" aria-live="polite"></div><div class="o-line"></div><div id="o-cards" role="group" aria-label="Choose a world"></div><div id="o-prog" aria-hidden="true"><i></i></div><button id="o-go" type="button">Ride</button><div class="o-hint"><kbd>Enter</kbd> ride &nbsp;·&nbsp; <kbd>←</kbd> <kbd>→</kbd> choose a world</div></div>';
+ const oNow=ov.querySelector('.o-now'),oWorld=ov.querySelector('.o-world'),oLine=ov.querySelector('.o-line'),oProgI=ov.querySelector('#o-prog i'),oGo=ov.querySelector('#o-go'),oBox=ov.querySelector('#o-cards');
+ const oName=w=>w.label.replace(/\s*\(.*\)/,'');
+ const ocards=WORLDS.map(w=>{const b=mk('button',{className:'o-card',type:'button',title:w.label},oBox);loadImg(w.image||'./worlds-ui/'+w.id+'.webp',u=>{b.style.backgroundImage='url("'+u+'")'});{const sp=mk('span',{},b);mk('b',{className:'o-full',textContent:oName(w)},sp);mk('b',{className:'o-short',textContent:(OMETA[w.id]||{}).short||oName(w).split(' ')[0]},sp)}b.onclick=()=>{oPick(w.id);b.blur()};return {id:w.id,b}});
+ let oShown='',oNext=0,oStarting=false,oWant=null;const CYCLE=9000;
+ const oShow=id=>{const w=WORLDS.find(q=>q.id===id);if(!w)return;oShown=id;const m=OMETA[id]||{};ov.style.setProperty('--acc',m.acc||'#d9ecc0');
+  oNow.textContent=(m.kick||'World')+' · on the '+(m.ride||'bike');oWorld.textContent=oName(w);oLine.textContent=m.line||'';
+  for(const e of [oNow,oWorld,oLine]){e.classList.remove('o-swap');void e.offsetWidth;e.classList.add('o-swap')}
+  for(const c of ocards){c.b.classList.toggle('sel',c.id===id);c.b.setAttribute('aria-pressed',String(c.id===id))}};
+ const oPick=id=>{if(!opening||oStarting||coverState!==2||!sets[id])return;oNext=performance.now()+25000;if(id===(switchTo||styleId))return;if(busy)oWant=id;else chooseStyle(id)};
+ function enterOpening(first){const go=()=>{opening=true;document.body.classList.add('opening');ov.classList.remove('gone');
+   const lapM=TRACK?TRACK.reduce((q,t)=>q+t.len,0)/upm:0;s=Math.max(0,lapM-24)*upm/step;x=0;bike.v=CRUISE;bike.vx=0;if(PX&&PX.setSpeed)PX.setSpeed(0,CRUISE);keys.clear();setCruise(true);
+   oNext=performance.now()+CYCLE;oWant=null;oShow(switchTo||styleId);ov.querySelector('.o-best').textContent=LAP.best?'Best lap '+lapFmt(LAP.best):'';applyRide();if(sound)sound.start();oGo.focus({preventScroll:true})};
+  if(first)go();else{ov.classList.remove('gone');ov.classList.add('dip');setTimeout(()=>{go();setTimeout(()=>ov.classList.remove('dip'),450)},330)}}
+ function startRide(){if(!opening||oStarting||coverState!==2)return;oStarting=true;ov.classList.add('dip');
+  setTimeout(()=>{opening=false;document.body.classList.remove('opening');s=0;x=0;yaw=0;pitch=0;bike.v=0;bike.vx=0;lapReset(0);LAP.doneAt=-1e9;if(PX&&PX.setSpeed)PX.setSpeed(0,0);setCruise(false);keys.clear();applyRide();if(sound)sound.start();
+   setTimeout(()=>{ov.classList.add('gone');ov.classList.remove('dip');oStarting=false;oGo.blur()},600)},330)}
+ oGo.onclick=startRide;
+ openFrame=now=>{if(!opening)return;if(REDUCED){yaw=0;pitch=0}else{yaw=6*Math.sin(now*.00023);pitch=-2.5+1.5*Math.sin(now*.00017)}
+  if(coverState!==2)return;if(!window.__cruise&&!oStarting)window.__cruise=CRUISE;
+  const cur=switchTo||styleId;if(cur!==oShown)oShow(cur);
+  for(const c of ocards)c.b.classList.toggle('wait',!sets[c.id]);if(WORLDS.filter(w=>sets[w.id]).length<2)oNext=now+CYCLE;
+  if(oWant&&!busy){const w=oWant;oWant=null;if(w!==styleId)chooseStyle(w)}
+  else if(!busy&&!transition&&!oStarting&&now>oNext){const ids=WORLDS.map(w=>w.id).filter(id=>sets[id]),nx=ids[(ids.indexOf(styleId)+1)%ids.length];oNext=now+CYCLE;if(nx&&nx!==styleId)chooseStyle(nx)}
+  oProgI.style.width=Math.max(0,Math.min(100,(1-(oNext-now)/CYCLE)*100))+'%'};
+ // keys while the opening is up: Enter or Space rides, the arrows choose a world, and nothing reaches the bike
+ addEventListener('keydown',e=>{if(!opening)return;const onSnd=e.target&&e.target.closest&&e.target.closest('#wsound');if(sound&&coverState===2&&!e.repeat&&!onSnd)sound.start();const onCard=onSnd||(e.target&&e.target.closest&&e.target.closest('.o-card'));
+  if(e.code==='Enter'||e.code==='Space'){e.stopImmediatePropagation();if(onCard)return;e.preventDefault();startRide();return}
+  if(e.code==='ArrowRight'||e.code==='ArrowLeft'){e.preventDefault();const ids=WORLDS.map(w=>w.id).filter(id=>sets[id]),i=ids.indexOf(switchTo||styleId),n=ids[(i+(e.code==='ArrowRight'?1:ids.length-1))%ids.length];if(n)oPick(n)}
+  if(e.code!=='Tab')e.stopImmediatePropagation()},true);
+ if(OPENING){opening=true;document.body.classList.add('opening');oShow((WORLDS.find(w=>w.id===params.get('style'))||WORLDS.find(w=>w.id===cfg.default_world)||WORLDS[0]).id)}
+ document.title='Dune Rush';
+ window.__open={start:startRide,enter:enterOpening,pick:oPick,state:()=>({opening,shown:oShown,starting:oStarting})}}
 let sndPos=null,sndSpeed=0,sndT=null;
 let sndS=null,sndDir=1;
 function soundFrame(dt){hudFrame();const pos=camera.position;if(sndPos&&dt>0){const v=pos.distanceTo(sndPos)/upm/dt;sndSpeed+=((v<60?v:0)-sndSpeed)*Math.min(1,dt*6);if(sndS!==null&&s!==sndS)sndDir=s<sndS?-1:1}sndPos=(sndPos||pos.clone()).copy(pos);sndS=s;
  if(!sound)return;try{
  if(transition&&transition!==sndT)sound.cue(transition.to);sndT=transition;
- sound.update({speed:sndSpeed,throttle:keys.has('w')?1:keys.has('s')?.6:window.__cruise?.45:0,active:mode==='ride',from:transition?transition.from:styleId,to:transition?transition.to:styleId,p:transition?revealP.value:1})}catch(e){console.error(e);sound=null}}
-function renderAll(){renderer.render(scene,camera);if(rider&&mode==='ride')try{rider.render(camera.aspect,{yaw,pitch,fov:camera.fov})}catch(e){console.error(e);rider=null}}
+ sound.update({speed:opening?0:Math.abs(bike.v),throttle:opening?0:bike.throttle,rpm:opening?0:bike.rpm,scrub:opening?0:Math.min(1,bike.scrub/4),active:mode==='ride'&&!opening,from:transition?transition.from:styleId,to:transition?transition.to:styleId,p:transition?revealP.value:1})}catch(e){console.error(e);sound=null}}
+function renderAll(){renderer.render(scene,camera);if(rider&&mode==='ride'&&!opening)try{rider.render(camera.aspect,{yaw,pitch,fov:camera.fov})}catch(e){console.error(e);rider=null}}
 
 let laneCur=null,switchTo=null;   // worlds: current (eased) lane {l,r,yaw}; the world a switch is heading to
 // Per-frame lane limits (metres to the left / right), when the scene JSON has them; otherwise one half-width everywhere.
@@ -183,11 +347,92 @@ const laneAt=(arr,fs)=>{if(laneCur&&arr&&(arr===C.lane_left_m||arr===C.lane_righ
 let mode='ride',s=0,x=0,h=eye,yaw=0,pitch=0,playing=null;
 // Turn limit: one value (yaw_deg), or per frame (yaw_limit_deg) where some stretches only hold up looking ahead.
 const yawLim=fs=>laneCur?laneCur.yaw:C.yaw_limit_deg?laneAt(C.yaw_limit_deg,fs):C.yaw_deg;
+
+// ---- Curved track (worlds) ----
+// The tiles are straight and stay laid out on a straight line ("straight space"): copies, the road and lane profiles and the
+// level-of-detail viewpoint all work there. A world modifier on every splat then bends that line onto the track: a repeating
+// list of segments from fantasy-worlds.json `track` ([{len_m, radius_m, left}]; no radius = straight; ?radius= overrides,
+// ?bend=0 turns it off). The bend is fixed in the world, so its inputs only change when the rider crosses into the next
+// segment; the camera is carried along the same curve. Each splat is moved to its place on the curve and turned with it.
+const TRACK=(WORLDS&&params.get('bend')!=='0'&&Array.isArray(cfg.track)&&cfg.track.length)?cfg.track.map(t=>({len:t.len_m*upm,k:t.radius_m?((t.left?-1:1)*(params.get('left')==='1'?-1:1))/((+params.get('radius')||t.radius_m)*upm):0})):null;
+const BEND=!!TRACK,ridePos=new THREE.Vector3(),bendTargets=new Set();
+const bendAxis=new THREE.Vector3().crossVectors(Tu,RIGHT).normalize();
+const bSeg=dyno.dynoVec4(new THREE.Vector4(0,0,0,0)),bKv=dyno.dynoVec4(new THREE.Vector4(0,0,0,0)),bLn=dyno.dynoVec2(new THREE.Vector2(1e9,1e9));
+const bP0=dyno.dynoVec3(P0.clone()),bTu=dyno.dynoVec3(Tu.clone()),bRt=dyno.dynoVec3(RIGHT.clone()),bUp=dyno.dynoVec3(up.clone()),bAx=dyno.dynoVec3(bendAxis.clone());
+// the segment under the rider: its index in the repeating list, where it starts along the line, and the curve's point and heading there
+const bend={i:0,a0:0,cx:0,cy:0,phi:0},_bRel=new THREE.Vector3(),_bPose={x:0,y:0,phi:0};
+const segOf=i=>TRACK[((i%TRACK.length)+TRACK.length)%TRACK.length];
+// end of an arc of length `len` (may be negative) and curvature k from the pose (cx, cy, ph), in (along, right) track coordinates
+function arcEnd(cx,cy,ph,k,len){const p1=ph+k*len;return Math.abs(k)<1e-9?[cx+len*Math.cos(ph),cy+len*Math.sin(ph),p1]:[cx+(Math.sin(p1)-Math.sin(ph))/k,cy+(Math.cos(ph)-Math.cos(p1))/k,p1]}
+function bendSync(){const c=segOf(bend.i),n1=segOf(bend.i+1);bSeg.value.set(bend.a0,bend.cx,bend.cy,bend.phi);bKv.value.set(segOf(bend.i-1).k,c.k,n1.k,segOf(bend.i+2).k);bLn.value.set(c.len,n1.len);for(const m of bendTargets)m.updateVersion()}
+function bendTrack(a){let changed=false;
+ for(let g=0;g<16&&a>=bend.a0+segOf(bend.i).len;g++){const c=segOf(bend.i),e=arcEnd(bend.cx,bend.cy,bend.phi,c.k,c.len);bend.a0+=c.len;bend.cx=e[0];bend.cy=e[1];bend.phi=e[2];bend.i++;changed=true}
+ for(let g=0;g<16&&a<bend.a0;g++){const pv=segOf(bend.i-1),e=arcEnd(bend.cx,bend.cy,bend.phi,pv.k,-pv.len);bend.a0-=pv.len;bend.cx=e[0];bend.cy=e[1];bend.phi=e[2];bend.i--;changed=true}
+ if(changed)bendSync()}
+// where the straight-space point (a along, l to the right) sits on the track, and the track's heading there (the shader does the same)
+function bendPose(a,l,out){let aa=a-bend.a0,cx=bend.cx,cy=bend.cy,ph=bend.phi,k;
+ if(aa<0)k=segOf(bend.i-1).k;else{const c=segOf(bend.i);k=c.k;if(aa>c.len){[cx,cy,ph]=arcEnd(cx,cy,ph,c.k,c.len);aa-=c.len;const n1=segOf(bend.i+1);k=n1.k;if(aa>n1.len){[cx,cy,ph]=arcEnd(cx,cy,ph,n1.k,n1.len);aa-=n1.len;k=segOf(bend.i+2).k}}}
+ const e=arcEnd(cx,cy,ph,k,aa);out.x=e[0]-l*Math.sin(e[2]);out.y=e[1]+l*Math.cos(e[2]);out.phi=e[2];return out}
+// Colour punch, per world, done on each splat's own colour in the same shader step as the bend (no extra pass, so it costs
+// nothing to draw): saturation, contrast about mid grey, and gain. A world's "grade" in fantasy-worlds.json is
+// [saturation, contrast, gain]; GRADE holds the defaults. ?grade=0 turns it off, ?grade=1.3,1.2,1 sets it for every world.
+// The frozen and neon worlds get little: more contrast turned the frozen one's frost into white-and-navy speckle and
+// crushed the neon one's dark half, so the tunnel's shape was lost (their shape now comes from grade_looks.py).
+const GRADE={day:[1.22,1.16,1.02],night:[1.18,1.14,1.04],winter:[1.08,1.06,1.0],cyberpunk:[1.12,1.06,1.05],ghibli:[1.16,1.1,1.0]},gradeU={};
+function gradeOf(id){if(gradeU[id])return gradeU[id];const q=params.get('grade'),w=WORLDS&&WORLDS.find(t=>t.id===id);
+ const g=q==='0'?[1,1,1]:q?q.split(',').map(Number):(w&&w.grade)||GRADE[id]||[1.15,1.12,1];return gradeU[id]=dyno.dynoVec3(new THREE.Vector3(g[0]||1,g[1]||1,g[2]||1))}
+function bendModifier(id){return dyno.dynoBlock({gsplat:dyno.Gsplat},{gsplat:dyno.Gsplat},({gsplat})=>{
+ const m=new dyno.Dyno({inTypes:{gsplat:dyno.Gsplat,seg:'vec4',kv:'vec4',ln:'vec2',p0:'vec3',tu:'vec3',rt:'vec3',upv:'vec3',ax:'vec3',gr:'vec3'},outTypes:{gsplat:dyno.Gsplat},
+  statements:({inputs:i,outputs:o})=>dyno.unindentLines(`
+   ${o.gsplat} = ${i.gsplat};
+   vec3 bRel = ${i.gsplat}.center - ${i.p0};
+   float bA = dot(bRel, ${i.tu}), bL = dot(bRel, ${i.rt}), bH = dot(bRel, ${i.upv});
+   float bAa = bA - ${i.seg}.x; vec2 bP = ${i.seg}.yz; float bPh = ${i.seg}.w; float bK;
+   if (bAa < 0.0) { bK = ${i.kv}.x; }
+   else {
+     bK = ${i.kv}.y;
+     if (bAa > ${i.ln}.x) {
+       float e1 = bPh + bK * ${i.ln}.x;
+       bP += abs(bK) < 1e-9 ? ${i.ln}.x * vec2(cos(bPh), sin(bPh)) : vec2(sin(e1) - sin(bPh), cos(bPh) - cos(e1)) / bK;
+       bPh = e1; bAa -= ${i.ln}.x; bK = ${i.kv}.z;
+       if (bAa > ${i.ln}.y) {
+         float e2 = bPh + bK * ${i.ln}.y;
+         bP += abs(bK) < 1e-9 ? ${i.ln}.y * vec2(cos(bPh), sin(bPh)) : vec2(sin(e2) - sin(bPh), cos(bPh) - cos(e2)) / bK;
+         bPh = e2; bAa -= ${i.ln}.y; bK = ${i.kv}.w;
+       }
+     }
+   }
+   float bE = bPh + bK * bAa;
+   vec2 bQ = bP + (abs(bK) < 1e-9 ? bAa * vec2(cos(bPh), sin(bPh)) : vec2(sin(bE) - sin(bPh), cos(bPh) - cos(bE)) / bK);
+   bQ += bL * vec2(-sin(bE), cos(bE));
+   ${o.gsplat}.center = ${i.p0} + ${i.tu} * bQ.x + ${i.rt} * bQ.y + ${i.upv} * bH;
+   vec4 bR = vec4(${i.ax} * sin(bE * 0.5), cos(bE * 0.5));
+   vec4 bS = ${i.gsplat}.quaternion;
+   ${o.gsplat}.quaternion = vec4(bR.w * bS.xyz + bS.w * bR.xyz + cross(bR.xyz, bS.xyz), bR.w * bS.w - dot(bR.xyz, bS.xyz));
+   vec3 gC = ${i.gsplat}.rgba.rgb;
+   gC = mix(vec3(dot(gC, vec3(0.299, 0.587, 0.114))), gC, ${i.gr}.x);
+   gC = ((gC - 0.5) * ${i.gr}.y + 0.5) * ${i.gr}.z;
+   ${o.gsplat}.rgba.rgb = clamp(gC, 0.0, 1.0);
+  `)});
+ return {gsplat:m.apply({gsplat,seg:bSeg,kv:bKv,ln:bLn,p0:bP0,tu:bTu,rt:bRt,upv:bUp,ax:bAx,gr:gradeOf(id)}).gsplat}})}
+if(BEND)bendSync();
+// Roadside props (fantasy-props.js): ten models per world beside the path, placed on the track by bendPose() and swapped with
+// the same rain sweep on a world switch. ?props=0 turns them off. Any failure drops the props, never the page.
+// A prop is only drawn where its ground is: the tile copy it stands in must be in place and faded in.
+const _pc=new THREE.Vector3();
+function propCopyOpacity(id,a){const set=sets[id],g=set&&set.W;if(!g)return 0;const k=Math.round((_pc.copy(P0).addScaledVector(Tu,a).sub(g.O).dot(g.Pu)-g.c0)/g.Pl),M=set.length,m=set[((k%M)+M)%M];
+ return Math.abs(_pc.copy(m.position).sub(g.O).dot(g.Pu)-k*g.Pl)<g.Pl*.25?(m.opacity??1):0}
+// the road's height (m, about the tile's median) at a place along the straight line, from the current world's road profile: rocks lie on it
+function propRoadH(a){const g=sets[styleId]&&sets[styleId].W;if(!g||!g.road)return 0;const r=g.road;let f=((_pc.copy(P0).addScaledVector(Tu,a).sub(g.O).dot(g.Pu)/upm)%r.len)/r.len*r.n;if(f<0)f+=r.n;const i=Math.floor(f)%r.n,q=f-Math.floor(f);return r.h[i]*(1-q)+r.h[(i+1)%r.n]*q}
+let props=null;try{if(WORLDS&&BEND&&params.get('props')!=='0')props=createProps(scene,{worlds:WORLDS.map(w=>w.id),P0,Tu,RIGHT,up,upm,eye,bendAxis,bendPose,lapLen:TRACK.reduce((q,t)=>q+t.len,0),period:new THREE.Vector3(...WORLDS[0].period).length(),after:splatsInP,copyOpacity:propCopyOpacity,roadHeight:propRoadH,renderer,camera})}catch(e){console.error(e)}
+// Ride motion added on top of the look angles (yaw, pitch): heading into a turn, nose dive / lift, lean roll. Set by ridePhysics().
+let rideYaw=0,ridePitch=0,rideRoll=0;
 function applyRide(){if(mode==='ride'){const L=yawLim(s);yaw=Math.max(-L,Math.min(L,yaw));x=Math.max(-laneAt(C.lane_left_m,s),Math.min(laneAt(C.lane_right_m,s),x));}
  const {p,f}=frame(s),r=new THREE.Vector3().crossVectors(f,up).normalize();
- camera.position.copy(p).addScaledVector(r,x*upm).addScaledVector(up,(h-eye)*upm);
- const d=f.clone().applyAxisAngle(up,-yaw*Math.PI/180);const r2=new THREE.Vector3().crossVectors(d,up).normalize();d.applyAxisAngle(r2,-pitch*Math.PI/180);
- camera.up.copy(up);camera.lookAt(camera.position.clone().add(d));camera.updateMatrixWorld();}
+ camera.position.copy(p).addScaledVector(r,x*upm).addScaledVector(up,(h-eye)*upm);ridePos.copy(camera.position);
+ let bphi=0;if(BEND){const rel=_bRel.copy(ridePos).sub(P0),a=rel.dot(Tu);bendTrack(a);bendPose(a,rel.dot(RIGHT),_bPose);camera.position.copy(P0).addScaledVector(Tu,_bPose.x).addScaledVector(RIGHT,_bPose.y).addScaledVector(up,rel.dot(up));bphi=_bPose.phi}
+ const d=f.clone().applyAxisAngle(up,-(yaw+rideYaw)*Math.PI/180);const r2=new THREE.Vector3().crossVectors(d,up).normalize();d.applyAxisAngle(r2,-(pitch+ridePitch)*Math.PI/180);if(bphi)d.applyAxisAngle(bendAxis,bphi);
+ camera.up.copy(up);camera.lookAt(camera.position.clone().add(d));if(rideRoll)camera.rotateZ(rideRoll);camera.updateMatrixWorld();}
 applyRide();
 // ?ply=<file in this folder> swaps the splat for A/B checks (for example a retrain); with the loop on it replaces the tile.
 const plyOverride=(params.get('ply')||'').match(/^[\w.-]+\.(ply|spz)$/)?params.get('ply'):null;
@@ -204,15 +449,39 @@ const EXT=params.has('ext')?params.get('ext')!=='0':!!cfg.ext_splats;   // full-
 async function makeSet(url,visible,id){                      // one splat, plus its loop copies sharing the same packed data
  const w=WORLDS&&id?styleOf(id):null,ext=w?!!w.ext:EXT;      // worlds: each world has its own precision, origin, period and copies
  // a hidden preload stays quiet. A failed download (the local server refuses connections under a burst) is retried.
- let m;for(let attempt=0;;attempt++){ m=new SplatMesh({url,...(ext?{extSplats:true}:{}),onProgress:e=>{if(e.total&&visible)status.textContent='Loading · '+Math.round(e.loaded/e.total*100)+'%';}});m.visible=visible;if(w)m.position.fromArray(w.origin);scene.add(m);try{await m.initialized;break}catch(e){scene.remove(m);if(attempt>=3)throw e;await new Promise(r=>setTimeout(r,700*(attempt+1)))}}
+ let m;for(let attempt=0;;attempt++){ m=new SplatMesh({url,...(LOD?{lod:true,nonLod:true}:{}),...(ext?{extSplats:true}:{}),onProgress:e=>{if(e.total&&visible)status.textContent='Loading · '+Math.round(e.loaded/e.total*100)+'%';}});m.visible=visible;if(w)m.position.fromArray(w.origin);scene.add(m);try{await m.initialized;break}catch(e){scene.remove(m);if(attempt>=3)throw e;await new Promise(r=>setTimeout(r,700*(attempt+1)))}}
  const set=[m];
  if(w){const P=new THREE.Vector3(...w.period),Pl=P.length(),Pu=P.clone().normalize(),O=new THREE.Vector3(...w.origin),road=P0.dot(up)-eye*upm;
   // where the tile's content sits along the period (mean centre), and its height range near the road (for the reveal's top-to-bottom sweep)
-  let sum=0,n=0;const hs=[];m.splats.forEachSplat((i,c)=>{if(i%8)return;sum+=c.dot(Pu);n++;const wc=c.clone().add(O);
+  let sum=0,n=0;const hs=[];
+  // road profile: the height of the ground along the tile's centre lane (0.9 m wide), in 25 cm steps, as a histogram per step
+  const PlM=Pl/upm,NB=Math.max(8,Math.round(PlM/.25)),hist=new Uint32Array(NB*50);
+  // obstacle map: splats 0.3 to 1.4 m above the road (stones, roots, trunks), in 10 cm cells out to 3 m each side
+  const NLAT=60,obst=new Uint32Array(NB*NLAT);
+  m.splats.forEachSplat((i,c)=>{
+   {const wx=c.x+O.x,wy=c.y+O.y,wz=c.z+O.z,lat=((wx-P0.x)*RIGHT.x+(wy-P0.y)*RIGHT.y+(wz-P0.z)*RIGHT.z)/upm;
+    if(lat>-3&&lat<3){const ho=(wx*up.x+wy*up.y+wz*up.z-road)/upm;if(ho>.3&&ho<1.4){let uo=((c.x*Pu.x+c.y*Pu.y+c.z*Pu.z)/upm)%PlM;if(uo<0)uo+=PlM;obst[Math.min(NB-1,Math.floor(uo/PlM*NB))*NLAT+Math.floor((lat+3)/.1)]++}}
+    if(lat>-.45&&lat<.45){const hg=(wx*up.x+wy*up.y+wz*up.z-road)/upm;if(hg>-.5&&hg<.5){let u=((c.x*Pu.x+c.y*Pu.y+c.z*Pu.z)/upm)%PlM;if(u<0)u+=PlM;hist[Math.min(NB-1,Math.floor(u/PlM*NB))*50+Math.floor((hg+.5)*50)]++}}}
+   if(i%8)return;sum+=c.dot(Pu);n++;const wc=c.clone().add(O);
    if(Math.abs(wc.clone().sub(P0).dot(RIGHT))<8*upm)hs.push((wc.dot(up)-road)/upm);});
   hs.sort((a,b)=>a-b);const lo=hs[Math.floor(hs.length*.02)]||0,hi=hs[Math.floor(hs.length*.95)]||4;
   for(const k of w.copies){if(k===0)continue;const c=new SplatMesh(ext?{extSplats:m.extSplats}:{packedSplats:m.packedSplats});c.visible=visible;c.position.copy(O).addScaledVector(P,k);scene.add(c);set.push(c);}
-  set.W={P,Pl,Pu,O,c0:n?sum/n:0,ks:w.copies,lo,hi};console.log('world',id,{c0m:set.W.c0/upm,periodM:Pl/upm,lo,hi,copies:set.length});}
+  // each step's ground height = the 30th percentile of its histogram (below the grass and stones), smoothed around the loop, about its median
+  const prof=new Float32Array(NB);let known=0;
+  for(let b=0;b<NB;b++){let tot=0;for(let k=0;k<50;k++)tot+=hist[b*50+k];if(tot<10){prof[b]=NaN;continue}let acc=0,k=0;for(;k<50;k++){acc+=hist[b*50+k];if(acc>=tot*.3)break}prof[b]=(k+.5)/50-.5;known++}
+  if(known<NB/2)prof.fill(0);else{for(let b=0;b<NB;b++)if(Number.isNaN(prof[b])){let d=1;while(Number.isNaN(prof[(b+d)%NB]))d++;prof[b]=prof[(b+d)%NB]}
+   for(let pass=0;pass<3;pass++){const q=prof.slice();for(let b=0;b<NB;b++)prof[b]=(q[(b+NB-1)%NB]+2*q[b]+q[(b+1)%NB])/4}
+   const med=prof.slice().sort()[NB>>1];for(let b=0;b<NB;b++)prof[b]=Math.max(-.2,Math.min(.2,prof[b]-med))}
+  // Lane profile: how far the bike's middle may go each side at each step along the tile. The first dense obstacle cell on
+  // that side (over a 0.75 m window), less 0.5 m for half the handlebar, taken as the narrowest within 0.5 m either way,
+  // then eased so it never closes in faster than 0.12 m per metre ridden (a gentle drift, about 1 m/s at cruising speed).
+  const laneL=new Float32Array(NB),laneR=new Float32Array(NB),edgeL=new Float32Array(NB),edgeR=new Float32Array(NB);
+  {const cell=(a,l)=>obst[((a+NB-1)%NB)*NLAT+l]+obst[a*NLAT+l]+obst[((a+1)%NB)*NLAT+l],rawL=new Float32Array(NB),rawR=new Float32Array(NB);
+   for(let a=0;a<NB;a++){let r=3,l=3;for(let k=30;k<NLAT;k++)if(cell(a,k)>=40){r=(k-30)*.1;break}for(let k=29;k>=0;k--)if(cell(a,k)>=40){l=(29-k)*.1;break}rawL[a]=Math.max(.6,l-.5);rawR[a]=Math.max(.6,r-.5);edgeL[a]=l;edgeR[a]=r}
+   for(const [raw,out] of [[rawL,laneL],[rawR,laneR]]){for(let a=0;a<NB;a++){let m=3;for(let d=-2;d<=2;d++)m=Math.min(m,raw[(a+d+NB)%NB]);out[a]=m}
+    const stepM=PlM/NB*.12;for(let pass=0;pass<4;pass++){for(let a=0;a<2*NB;a++){const i=a%NB,j=(i+NB-1)%NB;out[i]=Math.min(out[i],out[j]+stepM)}for(let a=2*NB;a>0;a--){const i=a%NB,j=(i+1)%NB;out[i]=Math.min(out[i],out[j]+stepM)}}}}
+  set.W={P,Pl,Pu,O,c0:n?sum/n:0,ks:w.copies,lo,hi,road:{n:NB,len:PlM,h:prof},lane:{n:NB,len:PlM,L:laneL,R:laneR,eL:edgeL,eR:edgeR}};console.log('world',id,{c0m:set.W.c0/upm,periodM:Pl/upm,lo,hi,copies:set.length});
+  if(BEND)for(const m of set){m.worldModifiers=[bendModifier(id)];m.updateGenerator();bendTargets.add(m)}}
  else if(LOOP){for(const k of copyList){if(k===0)continue;const c=new SplatMesh(EXT?{extSplats:m.extSplats}:{packedSplats:m.packedSplats});c.visible=visible;c.position.copy(T).multiplyScalar(k);scene.add(c);set.push(c);}}
  return set;}
 const sets={};const first=await makeSet(plyUrl,true,styleId);if(STYLES)sets[styleId]=first;
@@ -225,9 +494,19 @@ if(STYLES&&styleOf(styleId).background)scene.background.set(styleOf(styleId).bac
 // worlds: every loaded world keeps its own copies around the camera, each with the same no-jump rule as loop.unwrapped
 // (copy k uses mesh k mod M), so a hand-off in one world never moves a visible mesh of another.
 const _wp=new THREE.Vector3();
-function updateWorldCopies(){if(!WORLDS)return;const cp=camera.position;
- for(const set of Object.values(sets)){const g=set.W;if(!g)continue;const M=set.length,n=g.n=Math.floor((_wp.copy(cp).sub(g.O).dot(g.Pu)-g.c0)/g.Pl)+1;   // camera between the centres of copies -1 and 0: the most road ahead
-  for(const k0 of g.ks){const k=n+k0,m=set[((k%M)+M)%M];_wp.copy(g.O).addScaledVector(g.P,k);if(!m.position.equals(_wp))m.position.copy(_wp);}}}
+// A copy that jumps from behind the rider to the far end arrives with the detail level and draw order of its old place,
+// which showed as a ring of bright speckles around the tunnel's end for a few frames. So a moved copy is kept invisible
+// until the renderer has caught up (COPY_FADE.hold ms; ?copyfade=0 turns this off), then faded in.
+// Only the copy that lands at the far end is hidden: when the view jumps (test hooks), the near copies must stay visible.
+let copySpeed=0,copyMoved=false;      // the bike's speed (m/s), set by the ride step further down; and whether a tile copy has just been moved ahead
+const COPY_FADE={hold:params.get('copyfade')==='0'?-1:(+params.get('copyhold')||300),ramp:300},fadingCopies=new Set();
+function updateWorldCopies(){if(!WORLDS)return;const cp=WORLDS?ridePos:camera.position,now=performance.now();
+ for(const set of Object.values(sets)){const g=set.W;if(!g)continue;const M=set.length,kFar=g.kFar??=Math.max(...g.ks),n=g.n=Math.floor((_wp.copy(cp).sub(g.O).dot(g.Pu)-g.c0)/g.Pl)+1;   // camera between the centres of copies -1 and 0: the most road ahead
+  for(const k0 of g.ks){const k=n+k0,m=set[((k%M)+M)%M];_wp.copy(g.O).addScaledVector(g.P,k);if(!m.position.equals(_wp)){m.position.copy(_wp);if(COPY_FADE.hold>=0&&k0===kFar){m.opacity=0;m.userData.movedAt=now;fadingCopies.add(m);copyMoved=true}}}}
+ // at speed the far copy is reached sooner, so the fade shortens with it (to half at 65 km/h and above); the wait before it
+ // stays, because the copy's detail is only right once the next detail pick has come back (about 0.3 s)
+ const fadeK=Math.max(.5,Math.min(1,9/Math.max(1,copySpeed)));
+ for(const m of fadingCopies){const t=(now-m.userData.movedAt-COPY_FADE.hold)/(COPY_FADE.ramp*fadeK);if(t>=1){m.opacity=1;fadingCopies.delete(m)}else m.opacity=Math.max(0,t)}}
 const worldLane=id=>{const w=styleOf(id);return {l:w.lane_left_m,r:w.lane_right_m,yaw:w.yaw_deg};};
 const skyOf=id=>styleOf(id).sky?1:0;
 function setSky(a){if(!dome)return;dome.material.opacity=a;dome.visible=a>0.001;}
@@ -281,7 +560,7 @@ function revealModifier(d){                        // d: the set's direction uni
   return {gsplat:m.apply({gsplat,p:revealP,dir:d,up:revealUp,base:revealBase,span:revealSpan,cell:revealCell}).gsplat};});}
 let transition=null,busy=false;
 revealP.value=1;const setDir={};   // idle: p = 1 and direction +1 make the shader a no-op
-function attachReveal(id,set){setDir[id]=dyno.dynoFloat(1);for(const m of set){m.worldModifier=revealModifier(setDir[id]);m.updateGenerator();}}   // once per set, so a switch compiles nothing
+function attachReveal(id,set){setDir[id]=dyno.dynoFloat(1);for(const m of set){m.worldModifiers=BEND?[revealModifier(setDir[id]),bendModifier(id)]:[revealModifier(setDir[id])];m.updateGenerator();}}   // once per set, so a switch compiles nothing
 if(STYLES)attachReveal(styleId,sets[styleId]);
 function styleButtons(){for(const t of STYLES){const b=$('style-'+t.id);b.classList.toggle('active',t.id===styleId);b.disabled=busy;}}
 const synced=()=>spark.display&&spark.display.mappingVersion===spark.latestMappingVersion;
@@ -305,7 +584,7 @@ async function chooseStyle(id,animated=true){
  }catch(e){revealP.value=1;if(setDir[from])setDir[from].value=1;if(sets[id])for(const m of sets[id])m.visible=false;if(WORLDS)setSky(skyOf(from));finishStyle();status.textContent='Could not load style: '+e.message;}}
 function stepReveal(now){const t=transition,p=Math.min(1,Math.max(0,(now-t.start)/t.duration));
  if(t.previous!==null)t.deltas.push(now-t.previous);t.previous=now;
- revealP.value=p;for(const m of [...sets[t.from],...sets[t.to]])m.updateVersion();if(rider)try{rider.blend(t.from,t.to,p)}catch(e){console.error(e);rider=null}
+ revealP.value=p;for(const m of [...sets[t.from],...sets[t.to]])m.updateVersion();if(rider)try{rider.blend(t.from,t.to,p)}catch(e){console.error(e);rider=null}if(props)try{props.blend(t.from,t.to,p)}catch(e){console.error(e);props=null}
 
  scene.background.copy(t.bg0).lerp(t.bg1,Math.min(1,p*1.4));drawStreaks(p);
  if(WORLDS){const a0=skyOf(t.from),a1=skyOf(t.to);setSky(a0+(a1-a0)*(a1<a0?Math.min(1,p*2.5):Math.min(1,Math.max(0,(p-.1)/.45))));}   // sky out early into a tunnel; in over p 0.1-0.55 out of one, as the high splats land
@@ -338,22 +617,287 @@ $('play').onclick=()=>{setMode('ride');x=0;h=eye;yaw=0;pitch=0;playing=performan
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
 let previous=performance.now(),fpsN=0,fpsT=performance.now();
 function offPath(){let best=Infinity;for(const p of path)best=Math.min(best,p.distanceTo(camera.position));return best/upm;}
-renderer.setAnimationLoop(now=>{const dt=Math.min(.05,(now-previous)/1000);previous=now;
+
+// ---- Bike physics for the worlds game (arcade model; the road is an endless straight lane) ----
+// Forward: throttle pulls towards a top speed, brakes are strong, and letting go of the throttle slows the bike to a stop
+// in about two seconds (RIDE.engine). Cruise control (Space) holds a speed instead; braking switches it off.
+// Sideways: A / D lean the bike; the lean sets a sideways speed, scaled to the lane's width. In a curve the bike drifts outward.
+// The view heads into the turn, rolls with the lean and dips under braking.
+// vmax: 100 km/h (a limiter). Drive is the smaller of what the rear tyre can push (grip, m/s^2) and engine power over
+// speed (power, W per kg), less air drag (drag x v^2): 0 to 50 km/h in about 2 s, 0 to 100 in about 6 s.
+// gears: the speed each gear tops out at (m/s); they set the revs (sound, rev bar) and cut the drive for `shift` seconds at
+// each change. drift: how hard a curve pushes the bike outward (x v^2 / radius); scrub: speed lost per second for each m/s
+// of that push the tyres cannot follow at the edge of the road (beyond slideFree; regrip: seconds to hook up after). hitLoss: forward speed lost per m/s a stone takes away.
+// jolt: a hit of this size (m/s) or more is felt in the view. crash: hits adding up to this within a moment put the bike
+// down. Going down is OFF unless ?crash=1 (the user's choice, 2026-11-15): stones only knock the bike aside. ?crashat= turns
+// it on at another size. slide: with crashes on, tyres sliding this many m/s also put it down.
+const TOP=Math.max(30,Math.min(100,+params.get('top')||100))/3.6;      // ?top= sets the top speed in km/h (30 to 100)
+const RIDE={vmax:TOP,grip:7.5,power:150,brake:12,engine:4.5,drag:.004,reverse:2.5,cruise:8,lean:.40,drift:.35,scrub:4,slideFree:.6,regrip:2,
+ gears:[7.5,12.5,17.5,22.5,28.5].map(g=>g*TOP/27.78),shift:.14,hitLoss:.6,jolt:.8,slide:3.4,crash:params.get('crash')==='1'||params.get('crashat')?(+params.get('crashat')||4.5):1e9,fov:8};
+const bike={v:0,vx:0,vxSeen:0,kappa:0,lean:0,throttle:0,braking:false,a:0,pitch:0,pitchV:0,t:0,steerVis:0,z:0,zV:0,
+ gear:1,rpm:0,shiftT:0,scrub:0,gripT:0,imp:0,kick:0,flash:0,flashSide:0,crashT:0,crashSide:0,crashes:0,hits:0,lastHit:0};
+const WHEELBASE=1.26,_rp=new THREE.Vector3();
+// riding over a rock: kicks to the suspension (m/s) and pitch (deg/s) springs, the tip (rad) and the share of speed lost
+const ROCK={lift:.85,pitch:45,roll:.012,loss:.025};
+// Ground height (m, about the tile's median) of world `id` at `ahead` metres in front of the rider, from that world's road profile.
+function roadAt(id,ahead){const g=sets[id]&&sets[id].W;if(!g||!g.road)return 0;const r=g.road;
+ let f=((_rp.copy(ridePos).sub(g.O).dot(g.Pu)/upm+ahead)%r.len)/r.len*r.n;if(f<0)f+=r.n;
+ const i=Math.floor(f)%r.n,t=f-Math.floor(f);return r.h[i]*(1-t)+r.h[(i+1)%r.n]*t}
+// How far the bike's middle may go to one side (side 'L' or 'R') here: the world's cap, narrowed by the lane profile at the
+// bike and one metre ahead of it. Worlds that share a shape (same origin and tile length) vote: an obstacle counts only if
+// every loaded one has it, which drops the night world's glow specks.
+function laneLimit(side,cap){const cur=sets[styleId]&&sets[styleId].W;if(!cur||!cur.lane)return cap;const votes=[];
+ for(const set of Object.values(sets)){const g=set.W;if(!g||!g.lane||g.Pl!==cur.Pl||!g.O.equals(cur.O))continue;const r=g.lane,arr=side==='L'?r.L:r.R;let m=3;
+  for(const ahead of [0,1]){let f=((_rp.copy(ridePos).sub(g.O).dot(g.Pu)/upm+ahead)%r.len)/r.len*r.n;if(f<0)f+=r.n;const i=Math.floor(f)%r.n,t=f-Math.floor(f);m=Math.min(m,arr[i]*(1-t)+arr[(i+1)%r.n]*t)}
+  votes.push(m)}
+ // the upper median of the looks: with two it is the larger (as before), with five the third
+ votes.sort((a,b)=>a-b);const best=votes.length?votes[votes.length>>1]:0;
+ return Math.min(cap,best||cap)}
+function roadNow(ahead){const a=roadAt(styleId,ahead);return transition?a+(roadAt(transition.to,ahead)-a)*revealP.value:a}
+const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Detail ahead of the rider. The renderer picks its detail for a viewpoint and its answer arrives about 0.25 s late, so the
+// viewpoint it is given is moved ahead of the rider by that much travel: LEAD.base metres plus LEAD.perV seconds of riding.
+// Nothing nearer than about 4 m ahead is in view when looking level, so the lead costs nothing visible; looking down
+// shortens it. Measured sharpness of moving frames against stopped ones at the same spots: 36% before, 73% with both changes.
+// Picks are limited to one every LEAD.everyMs: running back to back (three to four a second) cost frame rate, and one every
+// 0.5 to 0.8 s kept most of the gain (moving sharpness 61 to 70 against 78 unlimited and 34 in the old mode, 114 stopped).
+// Fewer splats at speed: each pick is given a budget that falls with speed, to 65% of the level's at 100 km/h (LEAD.light,
+// ?lightspeed=0 turns it off). Frame time follows the number of splats drawn, and detail cannot be seen at that speed.
+// At 100 km/h a tile copy moves to the far end every 0.43 s and the regular pick leaves the far end of the passage soft in
+// about a third of the frames. Asking for a pick at each move (?leadmove=1) was tried and was worse: picks 0.3 to 0.43 s
+// apart do not finish (each takes about 0.3 s), and whole frames went soft. A lead beyond 8 m also made things worse (the
+// near scenery ends up behind the viewpoint the detail is chosen for). So both stay as they were. ?lead=0 turns the look-ahead off.
+const LEAD={on:params.get('lead')!=='0'||BEND,base:+params.get('leadm')||.5,perV:+params.get('leads')||.3,everyMs:params.get('leadms')!==null?+params.get('leadms'):600,onMove:params.get('leadmove')==='1',light:params.get('lightspeed')!==null?+params.get('lightspeed'):.35},_lodPos=new THREE.Vector3();
+const _lodQuat=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(),Tu,up));let leadAt=-1e9;
+window.__lead=LEAD;
+// ---- Map: the track drawn as a line, with the rider on it (?map=0 hides it) ----
+// The track list is walked once into a line (a point every 2 m), fitted to a small square with the starting direction up.
+// Each frame the rider's distance along the track, within the lap, is turned into a point and a heading on that line.
+let mapFrame=()=>{};
+if(TRACK&&params.get('map')!=='0'){
+ const lapLen=TRACK.reduce((q,t)=>q+t.len,0),line=[];let ex=0,ey=0,eph=0;
+ for(const t of TRACK){const n=Math.max(1,Math.ceil(t.len/upm/2));for(let i=0;i<n;i++){const e=arcEnd(ex,ey,eph,t.k,t.len*i/n);line.push([e[0],e[1]])}const e=arcEnd(ex,ey,eph,t.k,t.len);ex=e[0];ey=e[1];eph=e[2]}
+ line.push([ex,ey]);
+ // a circuit when the end meets the start (within 3 m); otherwise the line is drawn open and the rider jumps back to its start
+ const closed=Math.hypot(ex,ey)<3*upm;
+ let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;for(const [a,r] of line){x0=Math.min(x0,r);x1=Math.max(x1,r);y0=Math.min(y0,-a);y1=Math.max(y1,-a)}
+ const box=document.createElement('div');box.id='wmap';box.setAttribute('aria-label','Track map');
+ const cvs=document.createElement('canvas'),label=document.createElement('div');box.appendChild(cvs);box.appendChild(label);document.body.appendChild(box);
+ // lap times under the map (circuits only): the running lap, the last one, and the best on record; a banner at the line
+ const mkd=(id,par)=>{const e=document.createElement('div');e.id=id;par.appendChild(e);return e};
+ const lapT=closed?mkd('wlapt',box):null,lapL=closed?mkd('wlapl',box):null,lapB=closed?mkd('wlapb',box):null,lapDone=closed?mkd('wlapdone',document.body):null;let lapTxt='',lapLTxt='',lapBTxt='',lapDoneKey=0;
+ if(closed){lapInit(lapLen/upm);lapT.setAttribute('aria-label','Current lap time');lapDone.setAttribute('role','status')}
+ const lapFrame=()=>{if(!closed)return;const now=performance.now(),fresh=now-LAP.doneAt<4500;
+  const t=lapFmt(LAP.run?Math.max(LAP.t,.001):0).slice(0,-1);if(t!==lapTxt){lapTxt=t;lapT.textContent=LAP.run?t:'0:00.0'}
+  const l=LAP.last?'Last '+lapFmt(LAP.last):'';if(l!==lapLTxt){lapLTxt=l;lapL.textContent=l;lapL.style.display=l?'':'none'}
+  const nb=fresh&&LAP.isBest,b=(nb?'New best ':'Best ')+lapFmt(LAP.best);if(b!==lapBTxt){lapBTxt=b;lapB.textContent=b;lapB.classList.toggle('new',nb)}
+  if(fresh&&lapDoneKey!==LAP.doneAt){lapDoneKey=LAP.doneAt;lapDone.innerHTML='<small>Lap '+LAP.lastN+'</small>'+lapFmt(LAP.last)+(LAP.isBest?'<b>New best lap</b>':LAP.best?'<b style="color:#fff;opacity:.85">Best '+lapFmt(LAP.best)+'</b>':'');lapDone.classList.add('on')}
+  else if(!fresh&&lapDoneKey){lapDoneKey=0;lapDone.classList.remove('on')}};
+ const base=document.createElement('canvas');let px=0,py=0,cssW=0,sc=1,ox=0,oy=0,lastKey='',lastLabel='';
+ // The panel is stretched to the circuit's own shape (one scale both ways, so headings stay true): as wide as MAPW allows,
+ // and no taller than MAPH. ?mapw= sets the width in pixels.
+ const mapW=()=>+params.get('mapw')||(innerWidth<=640?Math.min(170,innerWidth*.42):Math.min(300,Math.max(200,innerWidth*.21))),ratio=Math.max(.35,Math.min(1.4,(y1-y0)/Math.max(x1-x0,1e-9)));
+ // screen point of a track point: right is right, the starting direction is up
+ const scr=(a,r)=>[ox+(r-x0)*sc,oy+(-a-y0)*sc];
+ function layout(){const dpr=Math.min(2,window.devicePixelRatio||1);cssW=mapW();let cssH=cssW*ratio;const maxH=innerWidth<=640?150:210;if(cssH>maxH){cssW*=maxH/cssH;cssH=maxH}
+  cvs.style.width=Math.round(cssW)+'px';cvs.style.height=Math.round(cssH)+'px';px=Math.round(cssW*dpr);py=Math.round(cssH*dpr);cvs.width=base.width=px;cvs.height=base.height=py;
+  const pad=9*dpr,U=dpr;sc=Math.min((px-2*pad)/Math.max(x1-x0,1e-9),(py-2*pad)/Math.max(y1-y0,1e-9));ox=(px-(x1-x0)*sc)/2;oy=(py-(y1-y0)*sc)/2;
+  const g=base.getContext('2d');g.clearRect(0,0,px,py);g.lineJoin=g.lineCap='round';
+  for(const [w,col] of [[7*U,'rgba(0,0,0,.45)'],[3.6*U,'rgba(255,255,255,.92)']]){g.beginPath();line.forEach(([a,r],i)=>{const [X,Y]=scr(a,r);if(i)g.lineTo(X,Y);else g.moveTo(X,Y)});if(closed)g.closePath();g.lineWidth=w;g.strokeStyle=col;g.stroke()}
+  // the start: a short bar across the track
+  const [sx,sy]=scr(0,0);g.beginPath();g.moveTo(sx-7*U,sy);g.lineTo(sx+7*U,sy);g.lineWidth=3.2*U;g.strokeStyle='#ffd27a';g.stroke();lastKey='';mapU=U}
+ // point and heading at `a` (track units along the lap) and `l` to the right of the middle
+ function at(a,l){let cx=0,cy=0,ph=0;for(const t of TRACK){if(a<=t.len){const e=arcEnd(cx,cy,ph,t.k,a);return [e[0]-l*Math.sin(e[2]),e[1]+l*Math.cos(e[2]),e[2]]}const e=arcEnd(cx,cy,ph,t.k,t.len);cx=e[0];cy=e[1];ph=e[2];a-=t.len}return [cx,cy,ph]}
+ let mapU=1;addEventListener('resize',()=>{px=0});
+ mapFrame=()=>{if(mode!=='ride'){if(box.style.display!=='none')box.style.display='none';return}if(box.style.display==='none')box.style.display='';
+  if(!px)layout();
+  if(px<2||py<2){px=0;return}      // the window has no size yet (a browser pane just opening): drawing a zero-size canvas throws, and one throw in the frame loop stops the game for good
+  const along=Math.max(0,_bRel.copy(ridePos).sub(P0).dot(Tu)),lapN=Math.floor(along/lapLen),a=along-lapN*lapLen,[pa,pr,ph]=at(a,x*upm),[X,Y]=scr(pa,pr);
+  const key=Math.round(X)+','+Math.round(Y)+','+Math.round(ph*20);
+  if(key!==lastKey){lastKey=key;const g=cvs.getContext('2d');g.clearRect(0,0,px,py);g.drawImage(base,0,0);
+   // the rider: an arrowhead pointing the way the track runs here (up at the start)
+   const R=9.5*mapU;g.save();g.translate(X,Y);g.rotate(ph);g.beginPath();g.moveTo(0,-R);g.lineTo(R*.72,R*.8);g.lineTo(0,R*.42);g.lineTo(-R*.72,R*.8);g.closePath();g.fillStyle='#ff6a2b';g.strokeStyle='rgba(0,0,0,.75)';g.lineWidth=1.5*mapU;g.fill();g.stroke();g.restore()}
+  const txt=(closed?'Lap '+(lapN+1)+' · ':'')+Math.round(a/upm)+' m';if(txt!==lastLabel){lastLabel=txt;label.textContent=txt}
+  lapFrame()};
+}
+// ---- Physics engine: NVIDIA PhysX (fantasy-physx.js) moves the bike's body and collides it with the stones ----
+// The walls are the measured stones: at each step along the tile, the first dense obstacle each side (set.W.lane.eL / eR),
+// the nearest within one step either way. Worlds that share a shape vote (an obstacle counts only if every loaded one has
+// it, which drops the night world's glow specks), and a wall never closes in faster than PXC.slope metres per metre ridden,
+// so a stone's face turns the bike aside (at most about 11 degrees, costing about 4% of its speed) and never stops it dead.
+// A wall is never further out than PXC.far (1.8 m, so the bike's middle stays within about 1.4 m, as far as the old lane went):
+// the recesses between roots are closed off, because the ground smears when seen from inside them (looking down at 1.48 m).
+// ?physx=0 rides on the built-in model, which is also what runs until the engine has loaded, or if it cannot load.
+// ?physx=missing points at a file that is not there, to test that fallback.
+const PXC={on:params.get('physx')!=='0',slope:+params.get('pxslope')||.2,pad:+params.get('pxpad')||0,near:.9,far:+params.get('pxfar')||1.8,ahead:.42,radius:.42,friction:params.get('pxfric')!==null?+params.get('pxfric'):.05};
+let PX=null,pxKey='';
+if(WORLDS&&PXC.on)splatsInP.then(async()=>{for(let attempt=0;attempt<3;attempt++){
+ try{const mod=await import('./fantasy-physx.js?v=1794758073'+(attempt?'&try='+attempt:''));PX=await mod.createPhysics({url:'./vendor/physx/'+(params.get('physx')==='missing'?'not-there.mjs':'physx-js-webidl.mjs')+(attempt?'?try='+attempt:''),friction:PXC.friction});window.__px=PX;console.log('physics: PhysX',(PX.version>>>24)+'.'+((PX.version>>>16)&255)+'.'+((PX.version>>>8)&255));return}
+ catch(e){console.warn('physics engine not loaded, attempt '+(attempt+1),e);await new Promise(r=>setTimeout(r,800*(attempt+1)))}}
+ console.warn('physics engine unavailable: riding on the built-in model')});
+// Builds the walls for the world being ridden when they are missing or out of date; true when the engine is ready to step.
+function pxSync(){if(!PX)return false;const cur=sets[styleId]&&sets[styleId].W;if(!cur||!cur.lane||!cur.lane.eL)return false;
+ const same=[];for(const set of Object.values(sets)){const g=set.W;if(g&&g.lane&&g.lane.eL&&g.Pl===cur.Pl&&g.O.equals(cur.O)&&g.lane.n===cur.lane.n)same.push(g.lane)}
+ const key=cur.Pl+'|'+cur.O.x+'|'+same.length;if(key===pxKey)return true;
+ const n=cur.lane.n,wl=new Float32Array(n),wr=new Float32Array(n),stepM=cur.lane.len/n*PXC.slope;
+ // each look votes with the nearest stone within one step; the wall is the upper median of the votes (the larger of two, the
+ // third of five), so one look's speck or missing stone does not move it
+ for(let i=0;i<n;i++){const vl=[],vr=[];for(const ln of same){let l=9,r=9;for(let d=-1;d<=1;d++){const j=(i+d+n)%n;l=Math.min(l,ln.eL[j]);r=Math.min(r,ln.eR[j])}vl.push(l);vr.push(r)}vl.sort((a,b)=>a-b);vr.sort((a,b)=>a-b);wl[i]=vl[vl.length>>1];wr[i]=vr[vr.length>>1]}
+ for(const out of [wl,wr]){for(let i=0;i<n;i++)out[i]=Math.max(PXC.near,Math.min(PXC.far,out[i]-PXC.pad));
+  for(let pass=0;pass<4;pass++){for(let q=0;q<2*n;q++){const i=q%n,j=(i+n-1)%n;out[i]=Math.min(out[i],out[j]+stepM)}for(let q=2*n;q>0;q--){const i=q%n,j=(i+1)%n;out[i]=Math.min(out[i],out[j]+stepM)}}}
+ try{const info=PX.setWalls(wl,wr,cur.lane.len);pxKey=key;PX.walls={L:wl,R:wr,len:cur.lane.len};console.log('physics walls',styleId,info,'worlds voting',same.length)}catch(e){console.error(e);PX=null;return false}
+ return true}
+// How far the bike's middle can go towards the wall `arr` (PX.walls.L or .R) at `u` metres along the tile: the nearest the
+// wall comes anywhere along the bike's length (and up to `ahead` metres in front of it), less the body's half width.
+function pxEdge(arr,u,ahead=0){const n=arr.length,dz=PX.walls.len/n;let m=9;
+ for(let o=-.9;o<=.91+ahead;o+=.45){let f=((u+o)/dz-.5)%n;if(f<0)f+=n;const i=Math.floor(f),t=f-i;m=Math.min(m,arr[i]*(1-t)+arr[(i+1)%n]*t)}
+ return m-PXC.radius}
+// The body's place along the current world's tile, in metres: the bike's middle is PXC.ahead in front of the rider's eyes.
+function pxU(){const g=sets[styleId].W;return _rp.copy(ridePos).sub(g.O).dot(g.Pu)/upm+PXC.ahead}
+function ridePhysics(dt){
+ const b=bike,down=b.crashT>0;b.t+=dt;if(down)b.crashT-=dt;copySpeed=Math.abs(b.v);
+ const W_=!down&&keys.has('w'),S_=!down&&keys.has('s'),steer=down?0:(keys.has('d')?1:0)-(keys.has('a')?1:0),cruise=!down&&!!window.__cruise;
+ const px=pxSync(),v0=b.v;
+ // ---- Sideways first: what the curve and the rider ask for, and how much room there is ----
+ // With the physics engine the stones are solid walls. The steering eases off towards the stone beside the bike (steering at
+ // full speed into one made the bike bounce off three times a second), so the rider cannot ram one sideways; a stone that
+ // closes into the bike's path hits it. Without the engine the soft edge follows the smoothed lane and nothing is ever hit.
+ // a finish gate funnels the road: its legs stand inside the stones (fantasy-props.js laneCap)
+ const gateCap=props?props.laneCap(_pc.copy(ridePos).sub(P0).dot(Tu)):Infinity;
+ const capL=Math.min(laneAt(C.lane_left_m,s),gateCap),capR=Math.min(laneAt(C.lane_right_m,s),gateCap),pu=px?pxU():0;
+ const L=px?Math.min(capL,pxEdge(PX.walls.L,pu)):laneLimit('L',capL),R=px?Math.min(capR,pxEdge(PX.walls.R,pu)):laneLimit('R',capR),half=(L+R)/2,soft=Math.min(.45,half*.5);
+ const roomR=Math.max(0,Math.min(1,(R-x)/soft)),roomL=Math.max(0,Math.min(1,(x+L)/soft));
+ const vxMax=Math.max(.5,Math.min(4,half*1.6)),moving=Math.min(1,Math.abs(b.v)/4),dir=Math.sign(b.v||1),want=steer*dir;
+ const room=want>0?roomR:want<0?roomL:1;
+ b.lean+=(steer*RIDE.lean*moving*(.35+.65*room)-b.lean)*(1-Math.exp(-dt*12));
+ // Curves: the track's curvature here (per metre, right-hand positive), eased in over about a third of a second. A bike held
+ // straight runs wide: the curve pushes it outward at RIDE.drift x v^2 / radius (0.5 m/s at 29 km/h on a 45 m curve, 5.4 m/s
+ // at 100 km/h) and the rider leans in to hold the line; leaning gives at most about 2 m/s, so a 40 m turn holds about
+ // 55 km/h and a 60 m turn about 70. The push eases off at the smoothed lane, a line just inside the stones that never
+ // closes in sharply, so a bike that has run wide rides along the edge of the road instead of being knocked about by
+ // each stone. What the push cannot do there is `scrub`: the tyres slide, and that costs speed (RIDE.scrub).
+ b.kappa+=((BEND?segOf(bend.i).k*upm:0)-b.kappa)*(1-Math.exp(-dt*3));
+ // The resting line is the smoothed lane, and never nearer than 12 cm to where the stones will be a quarter of a second
+ // ahead; the push fades out over a zone before it that grows with the push, and a bike beyond the line (the stones
+ // closing in) is carried back inside it, unless the rider is leaning that way. So a bike that has run wide follows
+ // the edge without touching a stone; only the rider's own lean, or a crash, puts it into one.
+ const push=-RIDE.drift*b.v*b.v*b.kappa,ps=push>0?1:-1,look=Math.abs(b.v)*.25;
+ const restL=px?Math.min(laneLimit('L',capL),pxEdge(PX.walls.L,pu,look)-.12):L,restR=px?Math.min(laneLimit('R',capR),pxEdge(PX.walls.R,pu,look)-.12):R;
+ const softP=Math.max(soft,Math.abs(push)*.14),over=ps>0?x-restR:-x-restL,pushRoom=Math.max(0,Math.min(1,-over/softP));
+ const scrubNow=Math.abs(push)>.05?Math.abs(push)*(1-pushRoom):0;b.scrub+=(scrubNow-b.scrub)*(1-Math.exp(-dt*8));
+ const steerV=(b.lean/RIDE.lean)*vxMax*dir,carry=over>0&&Math.abs(push)>.05&&want*ps<=0?-ps*Math.min(over*10,1.5+.3*Math.abs(b.v)):0;
+ // a bike that is down slides to a stop and is put back in the middle of the road
+ let vt=down?-x*3:steerV*(steerV>0?roomR:roomL)+push*pushRoom+carry;
+ if(!down&&gateCap<3){const o=Math.abs(x)-gateCap;if(o>0)vt-=Math.sign(x)*Math.min(o*5,2.5)}      // outside the funnel: carried back towards the middle
+ // ---- Forward: gears, drive, brakes ----
+ // The gear is chosen once a frame from the speed (up at 93% of a gear's top speed under throttle, down at 72% of the
+ // gear below); the forward rule itself depends only on speed within the frame, because the physics engine runs it once
+ // a substep and the built-in model once a frame. Coasting stops at zero instead of creeping backwards.
+ const thr=down||S_?0:W_?1:cruise?Math.max(0,Math.min(1,(RIDE.cruise-b.v)*.8+.25)):0;if(S_)window.__cruise=0;
+ const G=RIDE.gears;if(b.shiftT>0)b.shiftT-=dt;
+ if(b.gear<G.length&&b.v>G[b.gear-1]*.93&&thr>.05){b.gear++;b.shiftT=RIDE.shift}else if(b.gear>1&&b.v<G[b.gear-2]*.72){b.gear--;b.shiftT=RIDE.shift*.5}
+ b.rpm=Math.max(0,Math.min(1.05,.16+.84*Math.abs(b.v)/G[b.gear-1]));
+ // Sliding costs: beyond a small free amount (RIDE.slideFree, so cruising hands-off round a turn costs nothing) the slide
+ // slows the bike (RIDE.scrub per m/s, never more than 9 m/s^2, so it is a worse brake than the brakes), the drive is gone
+ // by a quarter of a metre per second of it, and after the slide stops the tyres take RIDE.regrip seconds to hook up again
+ // (15% of the drive until then). So sliding round a turn is clearly slower than braking for it and leaning in.
+ const slideEff=Math.max(0,scrubNow-RIDE.slideFree);if(slideEff>0)b.gripT=RIDE.regrip;else if(b.gripT>0)b.gripT-=dt;
+ const drive=thr*(b.shiftT>0?.12:1)*(slideEff>0?Math.max(0,1-slideEff/.25):b.gripT>0?.15:1),scrubDec=Math.min(9,RIDE.scrub*slideEff);
+ const longAcc=v=>{if(down)return v>.2?-20:0;if(S_)return v>.2?-RIDE.brake:v>-RIDE.reverse?-3:0;
+  let q=drive*Math.min(RIDE.grip,RIDE.power/Math.max(3,v))-RIDE.drag*v*Math.abs(v)-(v>1?scrubDec:0);if(thr<.05)q-=Math.sign(v)*RIDE.engine;if(v<0&&thr>0)q=Math.max(q,RIDE.brake*.5);return q};
+ const longStep=(v,hh)=>{let nv=v+longAcc(v)*hh;if(!S_&&thr<.05&&v*nv<=0)nv=0;return Math.max(-RIDE.reverse,Math.min(RIDE.vmax,nv))};
+ let a=longAcc(v0);
+ if(!px)b.v=longStep(v0,dt);
+ b.throttle=S_?.5:thr;
+ // Going down (only with ?crash=1): the bike stops, lies over, and is put back in the middle of the road after 1.6 s.
+ const goDown=side=>{b.crashT=1.6;b.crashSide=side;b.crashes++;b.imp=0;b.scrub=0;b.flash=1;b.flashSide=0;b.kick=-side*.3;window.__cruise=0;if(sound&&sound.hit)try{sound.hit(1)}catch(e){}};
+ // Far too fast into a turn: when the tyres are sliding RIDE.slide m/s or more for 0.15 s, the bike slides out from under
+ // the rider. The slide builds as the bike runs wide and the scrubbing is slowing it all the while, so this takes a tight
+ // turn reached well above its speed (measured: the hairpins, throttle held and no braking).
+ b.slideT=scrubNow>=RIDE.slide&&b.v>12?(b.slideT||0)+dt:0;
+ if(!down&&RIDE.crash<1e8&&b.slideT>=.15){b.slideT=0;goDown(ps)}
+ const x0=x,s0=s;
+ if(px){
+  // PhysX moves the body: it is told the speed the rider asks for, resolves the stones, and what is left is the bike's motion
+  // (a frame of no length returns nothing and moves nothing)
+  // the roadside props near the bike are solid: circles on the ground, handed to the engine in its own coordinates
+  if(props&&PX.setObstacles){const g=sets[styleId].W,cs=props.colliders(_pc.copy(ridePos).sub(P0).dot(Tu));PX.setObstacles(cs.map(c=>({x:c.lat,u:_pc.copy(P0).addScaledVector(Tu,c.a*upm).sub(g.O).dot(g.Pu)/upm,r:c.r})),pu)}
+  const r=PX.step(dt,{long:longStep,vt,rate:14,x,u:pu,vx:b.vx,vz:b.v});
+  if(r){x=r.x;b.vx=r.vx;b.v=r.vz;s+=r.moved*upm/step;b.hit=r.blocked;b.hitSide=r.side;
+   // ---- A stone hit ----
+   // r.lost is the velocity the stones took away this frame (m/s). The engine has already turned the bike aside; on top of
+   // that the hit costs forward speed (RIDE.hitLoss per m/s), is felt as one push of the view away from the stone and a
+   // flash on that side (never a continuing shake), and makes a thud. Hits within a moment add up (b.imp, fading over
+   // 0.3 s); past RIDE.crash the bike goes down: it stops, and is put back in the middle of the road after 1.6 s.
+   b.imp=b.imp*Math.exp(-dt/.3)+r.lost;
+   if(r.lost>.3&&!down){const lose=Math.min(b.v*.6,RIDE.hitLoss*r.lost);if(b.v>1&&lose>0){b.v-=lose;PX.setSpeed(b.vx,b.v)}
+    if(r.lost>=RIDE.jolt){const k=Math.min(1,r.lost/4);b.kick=Math.max(-.14,Math.min(.14,b.kick-r.side*k*.12));b.flash=Math.max(b.flash,.35+.65*k);b.flashSide=r.side;
+     if(b.t-b.lastHit>.25){b.hits++;b.lastHit=b.t;if(sound&&sound.hit)try{sound.hit(k)}catch(e){}}}
+    if(b.imp>=RIDE.crash&&b.v>5)goDown(r.side)}
+   a=Math.max(-40,Math.min(40,(b.v-v0)/Math.max(dt,1e-3)))}
+ }else{
+  b.vx+=(vt-b.vx)*(1-Math.exp(-dt*14));
+  b.vx=Math.max(-(vxMax*roomL+.03),Math.min(vxMax*roomR+.03,b.vx));
+  x+=b.vx*dt;s+=b.v*dt*upm/step;b.hit=0;b.hitSide=0;
+ }
+ // ---- A rock on the road (fantasy-props.js rockHit): ridden over, never a wall ----
+ // The front wheel crossing one gives a small jolt: the bike lifts about 3 cm and its nose about 1.5 degrees, it tips at most
+ // 0.7 degrees away from the rock, settles in about 0.4 s (the suspension and pitch springs below do that), and loses 2.5% of
+ // its speed; the rear wheel follows a wheelbase later with a smaller one. Weaker at low speed and for a glancing hit. With
+ // reduced motion the view does not move: only the speed loss and the thud remain.
+ lapStep(dt,s0*step/upm,s*step/upm);
+ if(props&&!down&&!opening){const hitR=props.rockHit(s0*step/upm,s*step/upm,x);
+  if(hitR){const k=Math.max(.4,Math.min(1,Math.abs(b.v)/10))*hitR.k,dirv=Math.sign(b.v||1);b.v-=b.v*ROCK.loss*k;if(px)PX.setSpeed(b.vx,b.v);
+   if(!REDUCED){b.zV+=ROCK.lift*k;b.pitchV-=ROCK.pitch*k*dirv;b.kick=Math.max(-.14,Math.min(.14,b.kick-hitR.side*ROCK.roll*k));b.rear={t:WHEELBASE/Math.max(3,Math.abs(b.v)),k,dirv}}
+   b.bumps=(b.bumps||0)+1;b.lastBump=b.t;if(sound&&sound.hit)try{sound.hit(.22*k)}catch(e){}}}
+ if(b.rear&&(b.rear.t-=dt)<=0){b.zV+=ROCK.lift*.5*b.rear.k;b.pitchV+=ROCK.pitch*.65*b.rear.k*b.rear.dirv;b.rear=null}
+ // where the lane closes in, the bike drifts back inside with it, not snapped (with the engine, the stones do that
+ // themselves, and this only keeps the bike inside the world's own limit)
+ const back=Math.max(1.5,Math.abs(b.v)*.25)*dt,eR=px?capR:R,eL=px?capL:L;
+ if(x>eR){x=Math.max(eR,x-back);if(b.vx>0)b.vx=0}else if(x<-eL){x=Math.min(-eL,x+back);if(b.vx<0)b.vx=0}
+ b.laneL=L;b.laneR=R;b.a=a;b.braking=S_&&b.v>.2;
+ // the sideways speed the view sees is the real one, including that drift and any push from a stone
+ b.vxSeen+=((x-x0)/Math.max(dt,1e-3)-b.vxSeen)*(1-Math.exp(-dt*10));
+ // view: a faint vibration with speed, heading into the turn, roll with the lean, and a damped pitch spring driven by
+ // acceleration (lift on throttle, dive on brakes and hits)
+ const fast=Math.min(1,Math.abs(b.v)/RIDE.vmax),shake=REDUCED?0:fast*Math.sin(b.t*31)*.04;
+ // road following: front and rear wheel heights set the ride height (through a suspension spring) and the slope
+ const hf=roadNow(.42+WHEELBASE/2),hr=roadNow(.42-WHEELBASE/2),slope=Math.atan2(hf-hr,WHEELBASE)*57.3*.7;
+ b.zV+=(((hf+hr)/2-b.z)*120-b.zV*15)*dt;b.z+=b.zV*dt;
+ const target=Math.max(-1.6,Math.min(2.6,-a*.19))-slope;b.pitchV+=((target-b.pitch)*90-b.pitchV*14)*dt;b.pitch+=b.pitchV*dt;
+ rideYaw=Math.atan2(b.vxSeen,Math.max(4,Math.abs(b.v)))*57.3*.9;
+ ridePitch=b.pitch+shake;
+ // the bike leans into a curve as a real one must: atan(v^2 / (radius x g)), up to about 29 degrees
+ const curveLean=Math.max(-.5,Math.min(.5,Math.atan(b.v*b.v*b.kappa/9.81)*.8));
+ // the push from a hit (b.kick) and the flash fade out on their own; a bike that is down lies over
+ b.kick*=Math.exp(-dt*(down?1.2:6));b.flash*=Math.exp(-dt*(down?.8:4.5));
+ rideRoll=REDUCED?0:-(b.lean+curveLean)*.55+b.kick;
+ h=eye+b.z;
+ // the faster the bike, the wider the view (up to RIDE.fov degrees more at 100 km/h)
+ const fov=vfov+(REDUCED?0:RIDE.fov*fast*fast);if(Math.abs(fov-camera.fov)>.03){camera.fov=fov;camera.updateProjectionMatrix()}
+ // the bars follow the lean; at a standstill, where the bike cannot lean, they turn with the keys instead
+ b.steerVis=b.lean/RIDE.lean+steer*(1-moving)*.7+curveLean*1.2;
+}
+window.__bike=bike;
+function tick(now,dtForce,noDraw){const dt=dtForce??Math.max(0,Math.min(.05,(now-previous)/1000));previous=now;
  if(transition)stepReveal(now);
- soundFrame(dt);
- if(rider)try{if(!transition)rider.setWorld(styleId);rider.update(dt,(keys.has('d')?1:0)-(keys.has('a')?1:0),{speed:mode==='ride'?sndSpeed*sndDir:0,reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches})}catch(e){console.error(e);rider=null}
+ soundFrame(dt);try{mapFrame()}catch(e){console.error(e)}      // the map never stops the frame loop
+ if(rider)try{if(!transition)rider.setWorld(styleId);rider.update(dt,bike.steerVis,{speed:mode==='ride'?bike.v:0,reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches})}catch(e){console.error(e);rider=null}
+ if(props)try{if(!transition)props.setWorld(styleId);props.update(_pc.copy(ridePos).sub(P0).dot(Tu),{base:revealBase.value,span:revealSpan.value},now)}catch(e){console.error(e);props=null}
    // a style switch in progress: both looks are drawn, movement continues
  if(WORLDS){const a=worldLane(styleId),b=switchTo?worldLane(switchTo):a,k=1-Math.exp(-dt*8);   // ease the lane into the target world's (the narrower during a switch)
   laneCur.l+=(Math.min(a.l,b.l)-laneCur.l)*k;laneCur.r+=(Math.min(a.r,b.r)-laneCur.r)*k;laneCur.yaw+=(Math.min(a.yaw,b.yaw)-laneCur.yaw)*k;
-  if(window.__cruise&&mode==='ride'&&playing===null&&!keys.has('w')&&!keys.has('s')){s+=window.__cruise*upm/step*dt;}   // test hook: ride forward at __cruise m/s
-  if(mode==='ride'&&playing===null&&!keys.size)applyRide();}
- fpsN++;if(now-fpsT>1000){window.__fps=Math.round(fpsN*1000/(now-fpsT));fpsN=0;fpsT=now;}
+  openFrame(now);
+  if(mode==='ride'&&playing===null){ridePhysics(dt);applyRide();
+   if(LOD){if(LEAD.on){if(!LEAD.everyMs||now-leadAt>=LEAD.everyMs||!spark.lodPosOverride||(copyMoved&&LEAD.onMove&&copySpeed>12&&now-leadAt>=300)){leadAt=now;copyMoved=false;if(window.__lodBase&&LEAD.light)spark.lodSplatCount=Math.round(window.__lodBase*(1-LEAD.light*Math.min(1,Math.abs(bike.v)/27.8)));const ld=Math.max(.3,Math.min(8,LEAD.base+Math.abs(bike.v)*(LEAD.perV+LEAD.everyMs/4000)-Math.max(0,pitch)*.08));spark.lodPosOverride=_lodPos.copy(ridePos).addScaledVector(Tu,ld*upm*(bike.v<-.2?-1:1))}
+     spark.lodQuatOverride=LEAD.everyMs?_lodQuat:null}else{spark.lodPosOverride=null;spark.lodQuatOverride=null}}};}
+ fpsN++;if(now-fpsT>1000){window.__fps=Math.round(fpsN*1000/(now-fpsT));resFrame(window.__fps,now-fpsT);fpsN=0;fpsT=now;}
  if(playing!==null){s=(now-playing)/1000*24/ (cfg.frame_stride||3);if(LOOP)s=wrapS(s);else if(s>=N-1){s=N-1;playing=null;}applyRide();}
- else if(keys.size&&mode==='ride'){const v=3*dt;                            // metres per second across / up; forward at about the filmed speed x4
+ else if(keys.size&&mode==='ride'&&!WORLDS){const v=3*dt;                            // metres per second across / up; forward at about the filmed speed x4
   if(keys.has('w'))s=Math.min(sMax,s+dt*8*24/(cfg.frame_stride||3)/2);if(keys.has('s'))s=Math.max(sMin,s-dt*8*24/(cfg.frame_stride||3)/2);if(LOOP)s=wrapS(s);
   if(keys.has('d'))x+=v;if(keys.has('a'))x-=v;x=Math.max(-laneAt(C.lane_left_m,s),Math.min(laneAt(C.lane_right_m,s),x));
   if(keys.has('e'))h=Math.min(C.height_m[1],h+v*.5);if(keys.has('q'))h=Math.max(C.height_m[0],h-v*.5);applyRide();}
- else if(keys.size){const fwd=new THREE.Vector3();camera.getWorldDirection(fwd);const right=new THREE.Vector3().crossVectors(fwd,up).normalize();const speed=4*upm*dt;
+ else if(keys.size&&!(WORLDS&&mode==='ride')){const fwd=new THREE.Vector3();camera.getWorldDirection(fwd);const right=new THREE.Vector3().crossVectors(fwd,up).normalize();const speed=4*upm*dt;
   if(keys.has('w'))camera.position.addScaledVector(fwd,speed);if(keys.has('s'))camera.position.addScaledVector(fwd,-speed);
   if(keys.has('d'))camera.position.addScaledVector(right,speed);if(keys.has('a'))camera.position.addScaledVector(right,-speed);
   if(keys.has('e'))camera.position.addScaledVector(up,speed);if(keys.has('q'))camera.position.addScaledVector(up,-speed);}
@@ -365,10 +909,15 @@ renderer.setAnimationLoop(now=>{const dt=Math.min(.05,(now-previous)/1000);previ
  updateTail();updateLoopCopies();updateWorldCopies();
  $('hud').textContent=mode==='ride'&&LOOP?`endless loop · ${((LU?((s%W)+W)%W:s)*step/upm).toFixed(1)} of ${(TL/upm).toFixed(0)} m into this stretch · across ${x>=0?'+':''}${x.toFixed(1)} m (limit −${laneAt(C.lane_left_m,s).toFixed(1)} / +${laneAt(C.lane_right_m,s).toFixed(1)}) · height ${h.toFixed(1)} m`:mode==='free'&&LOOP?'free fly · endless loop':mode==='ride'?`along ${(Math.min(s,N-1)*step/upm+(s>N-1?(s-N+1)*step/upm:0)).toFixed(1)} of ${TAIL?'∞':(cfg.path_length/upm+endM).toFixed(0)} m${TAIL&&s>N-1?' (endless road)':''} · across ${x>=0?'+':''}${x.toFixed(1)} m (limit −${laneAt(C.lane_left_m,s).toFixed(1)} / +${laneAt(C.lane_right_m,s).toFixed(1)}) · height ${h.toFixed(1)} m`:'free fly';
  const away=offPath(),w=$('warn');if(mode==='free'&&!BOUND&&away>C.half_width_m+.5){w.style.display='block';w.textContent='You are '+away.toFixed(1)+' m from the filmed path, outside the validated corridor (±'+C.half_width_m+' m); expect holes and smears.';}else w.style.display='none';
- renderAll();});
+ if(!noDraw)renderAll();}
+renderer.setAnimationLoop(now=>tick(now));
+// Test hooks: __step(n, dt) runs n frames of fixed length (drawing the last); __bench(n) returns the milliseconds one finished frame takes at the current pose.
+window.__step=(n=1,dt=1/60)=>{for(let i=0;i<n;i++)tick(performance.now(),dt,i<n-1)};      // draws only the last frame: hundreds of undisplayed draws in a row can reset the graphics context
+window.__bench=(n=20)=>{const gl=renderer.getContext(),px=new Uint8Array(4),one=()=>{renderAll();gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px)};one();one();const t=performance.now();for(let i=0;i<n;i++)one();return (performance.now()-t)/n};
 // For screenshots from the console: progress in frames, across and height in metres, yaw and pitch in degrees.
 window.ride=(fs,ax=0,ah=eye,ay=0,ap=0)=>{playing=null;setMode('ride');s=fs;x=Math.max(-laneAt(C.lane_left_m,fs),Math.min(laneAt(C.lane_right_m,fs),ax));h=ah;yaw=ay;pitch=ap;applyRide();renderAll();};
-window.__rider=rider;window.__sound=sound;window.__v={camera,renderer,scene,spark,mesh,sets,up,upm,tail:{TAIL,tailMeshes,updateTail},loopCopies:{copies,updateLoopCopies,LU},worlds:{WORLDS,updateWorldCopies,dome,lane:()=>laneCur,state:()=>({s,x,h,yaw,pitch,mode,styleId,busy,switchTo}),setSky,reveal:{revealBase,revealSpan,revealP}},loop:{P0,T,TL,Tu,RIGHT,W,BOUND},render:()=>renderAll(),step:(m)=>{const f=new THREE.Vector3();camera.getWorldDirection(f);camera.position.addScaledVector(f,m*upm);camera.updateMatrixWorld();renderAll();}};
+window.__rider=rider;window.__sound=sound;window.__props=props;window.__v={camera,renderer,scene,spark,mesh,sets,gradeU,up,upm,tail:{TAIL,tailMeshes,updateTail},loopCopies:{copies,updateLoopCopies,LU},worlds:{WORLDS,updateWorldCopies,dome,lane:()=>laneCur,state:()=>({s,x,h,yaw,pitch,mode,styleId,busy,switchTo}),setSky,reveal:{revealBase,revealSpan,revealP}},loop:{P0,T,TL,Tu,RIGHT,W,BOUND},render:()=>renderAll(),step:(m)=>{const f=new THREE.Vector3();camera.getWorldDirection(f);camera.position.addScaledVector(f,m*upm);camera.updateMatrixWorld();renderAll();}};
 window.laneAt=(fs)=>[laneAt(C.lane_left_m,fs),laneAt(C.lane_right_m,fs)];
+window.__bend=bend;
 window.rideRaw=(fs,ax=0,ah=eye,ay=0,ap=0)=>{playing=null;mode='free';s=fs;x=ax;h=ah;yaw=ay;pitch=ap;applyRide();renderAll();};
 </script></body></html>

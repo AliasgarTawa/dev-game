@@ -9,16 +9,10 @@ ROOT = Path(__file__).resolve().parent
 
 
 class Handler(SimpleHTTPRequestHandler):
-    def do_GET(self):
-        if urlsplit(self.path).path == '/':
-            self.send_response(302)
-            self.send_header('Location', '/worlds-opening/')
-            self.end_headers()
-            return
-        super().do_GET()
-
     def translate_path(self, path):
         parts = Path(unquote(urlsplit(path).path)).parts[1:]
+        if not parts:
+            parts = ('fantasy.html',)   # the game is the home page; index.html is the old Vite menu source
         if any(p.startswith('.') for p in parts):
             return str(ROOT / '__not_found__')
         # Keep earlier preview URLs usable without a sibling checkout.
@@ -41,8 +35,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=17012)
     args = parser.parse_args()
-    for name in ('fantasy-desert-v4-tile.ply', 'fantasy-worlds-roots-day-tile.ply',
-                 'fantasy-worlds-roots-night-tile.ply', 'worlds-models/desert-rigged.glb'):
+    for name in ('fantasy-worlds-roots-day-tile-light.ply', 'fantasy-worlds-roots-night-tile-light.ply',
+                 'fantasy-worlds-roots-winter-tile-light.ply', 'fantasy-worlds-roots-cyberpunk-tile-light.ply',
+                 'fantasy-worlds-roots-ghibli-tile-light.ply', 'worlds-models/roots-day-rigged.glb',
+                 'worlds-props/day/04-root-finish-gate.glb'):
         path = ROOT / name
         if not path.is_file():
             parser.exit(1, f'Missing {name}. Download the complete release ZIP or run git lfs pull.\n')
@@ -53,7 +49,7 @@ def main():
         server = Server(('127.0.0.1', args.port), partial(Handler, directory=str(ROOT)))
     except OSError as error:
         parser.exit(1, f'Could not start on port {args.port}: {error}\nTry: python3 serve.py --port 17015\n')
-    print(f'Dune Rush: http://127.0.0.1:{args.port}/worlds-opening/', flush=True)
+    print(f'Dune Rush: http://127.0.0.1:{args.port}/', flush=True)
     print('Press Ctrl+C to stop the server.', flush=True)
     try:
         server.serve_forever()

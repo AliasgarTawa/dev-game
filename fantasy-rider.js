@@ -12,7 +12,8 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 // per-column rain pattern and cyan flash as the scenery (desert <-> woodland dissolves one bike into the other;
 // day <-> night sweeps the skin across the one woodland bike).
 const A = './worlds-models/';
-export const URLS = {desert: A + 'desert-rigged.glb', day: A + 'roots-day-rigged.glb', night: A + 'roots-night-rigged.glb', rider: A + 'rider-rigged.glb', rig: A + 'rig.json'};
+export const URLS = {desert: A + 'desert-rigged.glb', day: A + 'roots-day-rigged.glb', night: A + 'roots-night-rigged.glb', rider: A + 'rider-rigged.glb', rig: A + 'rig.json',
+  winter: A + 'winter-rigged.glb', cyberpunk: A + 'cyberpunk-rigged.glb', countryside: A + 'countryside-rigged.glb', rigNew: A + 'rig-new.json'};
 // Rider's-eye camera in bike-mount space. It sits a little behind and below a real rider's eyes and looks slightly down,
 // so the bars and the front wheel stay in view under the road ahead (a "view model" camera, as first-person games use).
 export const POV = {eye: new THREE.Vector3(0, 1.36, 0.42), pitchDown: 14, minFov: 55, maxFov: 80};
@@ -20,15 +21,25 @@ const STEER_MAX = THREE.MathUtils.degToRad(14);
 // First-person arms. The forearm and paw sit on the grip exactly as the rider model was posed (so the paw meets the forearm
 // as modelled) and turn with the bar. The upper arm runs from the elbow down and back, out of the bottom of the view:
 // `dir` is its direction from shoulder to elbow (x mirrored per side) and `upper` its length scale, so its cut end stays hidden.
-const ARM = {upper: 1.5, dir: {x: 0.15, y: 1, z: -0.4}};
+const ARM = {upper: 1.5, dir: {x: 0.15, y: 1, z: -0.4},
+  // On a narrow handlebar (grips under 30 cm from the middle) the upper arms would rise through the middle of a tall, narrow
+  // window as two wide tubes. There the elbows point outwards instead, so the arms leave by the bottom corners.
+  narrow: {x: -0.45, z: -0.25, at: 0.22, wide: 0.30}};
 const TOP = '1.2';           // m: the sweep runs from this height down to the road
 const MAX_TEX = 2048;
 
-const kindOf = id => id === 'desert' ? 'desert' : 'roots', nightOf = id => id === 'night' ? 1 : 0;
+// Which vehicle each world rides: the woodland bike has a day and a night skin; the three newer worlds have their own vehicle
+// (a snowmobile, a neon street bike, a vintage bike), rigged by runs/new-worlds-2026-11-15/bikes/rig_new.py.
+const BIKE = {desert: 'desert', day: 'roots', night: 'roots', winter: 'winter', cyberpunk: 'cyberpunk', ghibli: 'countryside'};
+const NEW = ['winter', 'cyberpunk', 'countryside'];
+const kindOf = id => BIKE[id] || 'roots', nightOf = id => id === 'night' ? 1 : 0;
 const LIGHT = {            // hemisphere sky/ground + intensity, sun colour + intensity, rim colour + intensity, environment
   desert: {sky: 0xfff3dd, gnd: 0x6b5140, hemi: 1.5, sun: 0xffedcd, sunI: 2.2, rim: 0xffe2c0, rimI: 0.8, env: 0.55},
   day:    {sky: 0xe8f0d8, gnd: 0x3d4a33, hemi: 1.2, sun: 0xfff0d0, sunI: 1.6, rim: 0xe6f0c8, rimI: 0.7, env: 0.45},
   night:  {sky: 0x7fa8d8, gnd: 0x10202c, hemi: 0.6, sun: 0x9fb8ff, sunI: 0.9, rim: 0x66d0ff, rimI: 0.7, env: 0.22},
+  winter: {sky: 0xeaf3ff, gnd: 0x9aa8b8, hemi: 1.5, sun: 0xf4f8ff, sunI: 1.5, rim: 0xdcecff, rimI: 0.8, env: 0.6},
+  cyberpunk: {sky: 0xb48cff, gnd: 0x1a0a2c, hemi: 0.7, sun: 0xff66d8, sunI: 1.0, rim: 0x55e6ff, rimI: 1.0, env: 0.3},
+  ghibli: {sky: 0xdff0ff, gnd: 0x5a7a3a, hemi: 1.4, sun: 0xfff2cc, sunI: 1.9, rim: 0xe8f6d0, rimI: 0.7, env: 0.5},
 };
 
 function shrink(tex, seen) {
@@ -85,7 +96,8 @@ function patch(mat, u, key, night) {
   mat.customProgramCacheKey = () => 'worlds-rider-' + key;
 }
 
-export function createRider(renderer, {onStatus = () => {}, arms = true, after = null} = {}) {
+export function createRider(renderer, {onStatus = () => {}, arms = true, after = null, worlds = ['desert', 'day', 'night']} = {}) {
+  const kinds = new Set(worlds.map(kindOf)), need = {desert: kinds.has('desert'), roots: kinds.has('roots')};      // only the vehicles of worlds in the game are loaded
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(60, 1, 0.05, 30);
   scene.environment = skyEnvironment(renderer);
   const hemi = new THREE.HemisphereLight(0xffffff, 0x000000, 1); scene.add(hemi);
@@ -94,8 +106,9 @@ export function createRider(renderer, {onStatus = () => {}, arms = true, after =
   const mount = new THREE.Group(); scene.add(mount);
 
   const p = {value: 1}, U = {desert: {p, dir: {value: 1}}, roots: {p, dir: {value: 0}, nA: {value: 0}, nB: {value: 0}}};
+  for (const k of NEW) U[k] = {p, dir: {value: 0}};
   // bikes: {root, front, wheel, axis, radius} per kind
-  const state = {bikes: {}, arms: null, steer: 0, t: 0, from: 'desert', to: 'desert', p: 1, loaded: []};
+  const state = {bikes: {}, arms: null, steer: 0, t: 0, from: worlds[0], to: worlds[0], p: 1, loaded: []};
   const gltf = new GLTFLoader(), seen = new Set(), pause = ms => new Promise(r => setTimeout(r, ms));
   // Loads start once `after` settles (the page passes "first world is in", so the downloads do not all hit the server at once),
   // and a failed download is retried: the local server refuses connections under a burst.
@@ -103,9 +116,10 @@ export function createRider(renderer, {onStatus = () => {}, arms = true, after =
   const loader = {loadAsync: url => retry(() => gltf.loadAsync(url))};
   const done = name => { state.loaded.push(name); apply(); onStatus(state.loaded); };
   const rigInfo = retry(() => fetch(URLS.rig).then(r => { if (!r.ok) throw new Error('rig.json ' + r.status); return r.json(); }));
+  const rigNew = NEW.some(k => kinds.has(k)) ? retry(() => fetch(URLS.rigNew).then(r => { if (!r.ok) throw new Error('rig-new.json ' + r.status); return r.json(); })) : null;
   function addBike(kind, root, info) {
     const front = root.getObjectByName('front'), wheel = root.getObjectByName('wheel_f');
-    if (!front || !wheel) throw new Error(kind + ' bike is not rigged (front / wheel_f nodes missing)');
+    if (!front) throw new Error(kind + ' bike is not rigged (front node missing)');      // a snowmobile has no front wheel
     state.bikes[kind] = {root, front, wheel, axis: new THREE.Vector3().fromArray(info.axis).normalize(), pivot: new THREE.Vector3().fromArray(info.pivot), radius: info.radius, grips: null};
     mount.add(root);
   }
@@ -135,21 +149,21 @@ export function createRider(renderer, {onStatus = () => {}, arms = true, after =
     state.arms = arms; mount.add(root);
   }
   // Grip centres of a bike in mount space: the middle of the rubber grips, which cover roughly the outer 25 cm of the handlebar.
-  function measureGrips(front) {
+  function measureGrips(front, minY = 0.9) {
     const out = {}, v = new THREE.Vector3(), sum = {L: new THREE.Vector3(), R: new THREE.Vector3()}, n = {L: 0, R: 0}, pts = [];
     const pos = front.geometry?.attributes.position; if (!pos) return null;
     // rest pose: the node's origin is its only offset
-    let xmax = 0; for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).add(front.position); if (v.y > 0.9) { pts.push(v.clone()); xmax = Math.max(xmax, Math.abs(v.x)); } }
+    let xmax = 0; for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).add(front.position); if (v.y > minY) { pts.push(v.clone()); xmax = Math.max(xmax, Math.abs(v.x)); } }
     for (const q of pts) { const ax = Math.abs(q.x); if (ax > xmax - 0.20 && ax < xmax - 0.05) { const k = q.x > 0 ? 'L' : 'R'; sum[k].add(q); n[k]++; } }
     for (const k of ['L', 'R']) { if (!n[k]) return null; out[k] = sum[k].divideScalar(n[k]); }
     return out;
   }
   const ready = Promise.allSettled([
-    Promise.all([loader.loadAsync(URLS.desert), rigInfo]).then(([g, rig]) => {
+    !need.desert ? null : Promise.all([loader.loadAsync(URLS.desert), rigInfo]).then(([g, rig]) => {
       for (const m of materialsOf(g.scene)) { for (const k of MAPS) shrink(m[k], seen); patch(m, U.desert, 'desert', null); }
       addBike('desert', g.scene, rig.desert); done('desert bike');
     }),
-    Promise.all([loader.loadAsync(URLS.day), loader.loadAsync(URLS.night), rigInfo]).then(([day, night, rig]) => {
+    !need.roots ? null : Promise.all([loader.loadAsync(URLS.day), loader.loadAsync(URLS.night), rigInfo]).then(([day, night, rig]) => {
       const other = materialsOf(night.scene)[0];      // same shape and UVs as the day bike: only its skin is used
       if (!other?.map) throw new Error('night skin has no colour texture');
       for (const k of MAPS) shrink(other[k], seen);
@@ -158,24 +172,36 @@ export function createRider(renderer, {onStatus = () => {}, arms = true, after =
       state.bikes.roots.grips = measureGrips(state.bikes.roots.front);      // the paws were fitted to the desert bike; this bike's grips sit elsewhere
       done('woodland bikes');
     }),
+    ...NEW.filter(k => kinds.has(k)).map(k => Promise.all([loader.loadAsync(URLS[k]), rigNew]).then(([g, rig]) => {
+      for (const m of materialsOf(g.scene)) { for (const q of MAPS) shrink(m[q], seen); patch(m, U[k], k, null); }
+      // A windshield (the snowmobile's "glass" node) sits on the vanishing point: in a tall, narrow window it covered the way
+      // ahead even when see-through. It is not drawn, and the body is cut off level just above the glass's lower edge, in front
+      // of the bars only (the ragged opaque rim the glass sat in would otherwise stay). The bars and dash are behind that line.
+      const glass = g.scene.getObjectByName('glass'), body = g.scene.getObjectByName('body');
+      if (glass) { glass.visible = false;
+        const bb = new THREE.Box3().setFromBufferAttribute(glass.geometry.attributes.position);
+        if (body?.material && !Array.isArray(body.material) && !bb.isEmpty()) { const m = body.material;
+          m.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, -1, 0), bb.min.y + 0.03), new THREE.Plane(new THREE.Vector3(0, 0, 1), -(bb.max.z + 0.08))];
+          m.clipIntersection = true; renderer.localClippingEnabled = true; } }
+      addBike(k, g.scene, rig[k]);
+      state.bikes[k].grips = measureGrips(state.bikes[k].front, rig[k].bars_y - 0.03);
+      done(k + ' vehicle');
+    })),
     arms ? loader.loadAsync(URLS.rider).then(g => { addArms(g.scene); done('arms'); }) : null,
   ]).then(r => { for (const x of r) if (x.status === 'rejected') console.error('bike failed to load:', x.reason); return state.loaded; });
 
   const ca = new THREE.Color(), cb = new THREE.Color(), mixC = (target, a, b, k) => target.copy(ca.set(a)).lerp(cb.set(b), k);
   function apply() {
-    const {from, to, p: q} = state, kf = kindOf(from), kt = kindOf(to), moving = q < 1 && from !== to, {desert, roots} = state.bikes;
+    const {from, to, p: q} = state, kf = kindOf(from), kt = kindOf(to), moving = q < 1 && from !== to;
     p.value = moving ? q : 1;
-    if (!moving || kf === kt) {            // settled, or day <-> night: one bike, the skin sweeps across it
-      if (desert) desert.root.visible = kt === 'desert';
-      if (roots) roots.root.visible = kt === 'roots';
-      U.desert.dir.value = 0; U.roots.dir.value = 0;
-      U.roots.nA.value = moving ? nightOf(from) : nightOf(to); U.roots.nB.value = nightOf(to);
-    } else {                               // desert <-> woodland: both drawn, one leaving and one arriving
-      if (desert) desert.root.visible = true;
-      if (roots) roots.root.visible = true;
-      U.desert.dir.value = kt === 'desert' ? 1 : -1; U.roots.dir.value = kt === 'roots' ? 1 : -1;
-      U.roots.nA.value = U.roots.nB.value = nightOf(kt === 'roots' ? to : from);
+    const swap = moving && kf !== kt;      // two different vehicles: both drawn, one leaving and one arriving; otherwise only the current one
+    for (const [k, b] of Object.entries(state.bikes)) {
+      b.root.visible = swap ? (k === kf || k === kt) : k === kt;
+      U[k].dir.value = swap ? (k === kt ? 1 : k === kf ? -1 : 0) : 0;
     }
+    // the woodland bike's skin: sweeps across it on day <-> night, and is fixed while it arrives or leaves
+    if (!swap) { U.roots.nA.value = moving ? nightOf(from) : nightOf(to); U.roots.nB.value = nightOf(to); }
+    else U.roots.nA.value = U.roots.nB.value = nightOf(kt === 'roots' ? to : from);
     const a = LIGHT[from], b = LIGHT[to], k = moving ? q * q * (3 - 2 * q) : 1;
     mixC(hemi.color, a.sky, b.sky, k); mixC(hemi.groundColor, a.gnd, b.gnd, k); hemi.intensity = a.hemi + (b.hemi - a.hemi) * k;
     mixC(sun.color, a.sun, b.sun, k); sun.intensity = a.sunI + (b.sunI - a.sunI) * k;
@@ -191,7 +217,7 @@ export function createRider(renderer, {onStatus = () => {}, arms = true, after =
     const st = state.steer, v = Math.abs(speed);
     for (const b of Object.values(state.bikes)) {
       b.front.quaternion.setFromAxisAngle(b.axis, -st * STEER_MAX);      // bars, fork and wheel turn together about the steering axis
-      b.wheel.rotation.x -= speed * dt / b.radius;                        // rolling without slipping
+      if (b.wheel) b.wheel.rotation.x -= speed * dt / b.radius;           // rolling without slipping
     }
     if (state.arms) solveArms(-st * STEER_MAX);
     mount.rotation.set(0, 0, -st * 0.05);                                 // a little lean into the turn
@@ -211,6 +237,8 @@ export function createRider(renderer, {onStatus = () => {}, arms = true, after =
       if (!gripTarget(T, kt, a, angle)) { if (!gripTarget(T, kf, a, angle)) continue; }
       else if (k < 1 && gripTarget(T2, kf, a, angle)) T.lerpVectors(T2, T, k);
       qA.setFromAxisAngle((state.bikes[kt] || state.bikes[kf]).axis, angle);
+      { const u = THREE.MathUtils.clamp((Math.abs(T.x) - ARM.narrow.at) / (ARM.narrow.wide - ARM.narrow.at), 0, 1);
+        a.dir.set(a.sx * (ARM.narrow.x + (ARM.dir.x - ARM.narrow.x) * u), ARM.dir.y, ARM.narrow.z + (ARM.dir.z - ARM.narrow.z) * u).normalize(); }
       E.copy(T).sub(w1.copy(a.HE).applyQuaternion(qA));                         // elbow: the forearm keeps its modelled pose relative to the paw
       a.up.position.copy(w1.copy(E).addScaledVector(a.dir, -a.l1)).applyMatrix4(a.parentInv);      // shoulder: down the upper arm from the elbow
       q1.setFromUnitVectors(a.dirU, a.dir); qU.copy(q1).multiply(a.qU0);
@@ -221,7 +249,7 @@ export function createRider(renderer, {onStatus = () => {}, arms = true, after =
   const dir = new THREE.Vector3(), right = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), tgt = new THREE.Vector3();
   // yaw / pitch in degrees, as the world camera's look-around uses them (yaw right positive, pitch down positive)
   function render(aspect, {yaw = 0, pitch = 0, fov = 60} = {}) {
-    if (!state.bikes.desert && !state.bikes.roots) return;
+    if (!Object.keys(state.bikes).length) return;
     camera.aspect = aspect; camera.fov = THREE.MathUtils.clamp(fov, POV.minFov, POV.maxFov);
     camera.position.copy(POV.eye);
     dir.set(0, 0, -1).applyAxisAngle(UP, -yaw * Math.PI / 180); right.crossVectors(dir, UP).normalize();

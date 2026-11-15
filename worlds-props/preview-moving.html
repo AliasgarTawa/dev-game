@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8"><title>Moving parts preview</title>
+<style>html,body{margin:0;background:#222}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"../vendor/three.module.js","three/addons/":"../vendor/addons/"}}</script>
+<script type="module">
+// Dev check: the windmill and the waterwheel as the game cuts them (layout.json "moving"): whole at three angles, then the
+// turning part alone and the body alone.
+import * as THREE from 'three'; import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'; const {splitMoving} = await import('../fantasy-props.js?v=' + Date.now());
+const C = 300, idx = await (await fetch('./props.json', {cache: 'no-store'})).json(), L = await (await fetch('./layout.json', {cache: 'no-store'})).json();
+const keys = Object.keys(L.moving).filter(k => L.moving[k].spin);
+const renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true}); renderer.setPixelRatio(1); renderer.setSize(C * 5, C * keys.length); document.body.append(renderer.domElement);
+const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 1.6)); const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(-2, 4, 3); scene.add(sun);
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50), loader = new GLTFLoader(); renderer.setScissorTest(true); renderer.setClearColor(0x2a2a2e); window.__info = [];
+for (const [r, k] of keys.entries()) { const e = idx[k.replace('/', '/')], g = await loader.loadAsync('./' + e.file + '?v=' + e.bytes), root = g.scene;
+  const res = splitMoving(root, L.moving[k].spin); window.__info.push(k + ' part ' + res.part + ' body ' + res.body + ' filled ' + res.filled);
+  root.traverse(o => { if (o.isMesh) { o.material.side = THREE.DoubleSide; } }); scene.add(root);
+  const spin = root.getObjectByName('spin'), body = root.getObjectByName('body');
+  const shots = [[0, true, true, 25], [0.7, true, true, 25], [1.9, true, true, 25], [0.7, false, true, 0], [0, true, false, 25]];
+  shots.forEach(([a, showBody, showSpin, yaw], c) => { spin.rotation.z = a; body.visible = showBody; spin.visible = showSpin; const d = 5.2, y = yaw * Math.PI / 180; cam.position.set(Math.sin(y) * d, 0.6, Math.cos(y) * d); cam.lookAt(0, 0, 0);
+    const x = c * C, yy = (keys.length - 1 - r) * C; renderer.setViewport(x, yy, C, C); renderer.setScissor(x, yy, C, C); renderer.render(scene, cam); });
+  scene.remove(root); }
+document.title = 'done';
+</script>

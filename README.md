@@ -1,123 +1,107 @@
 # Dune Rush
 
-A browser dirt-bike prototype by **Arjun Behl and Ali**, built around **millions of 3D Gaussian splats**. Ride through a desert road, a daytime root passage and a glowing night passage, then watch a new world fall into place while you keep moving.
+**One track. Five worlds. The world changes while you ride.**
 
-**4.69 million splat instances in the desert · Three worlds · A one-second rainfall reveal**
+A bike game that runs in the browser, built from 3D Gaussian splats by **Arjun Behl and Ali**.
 
-[Download and play](#download-and-run) · [Illustrated guide (PDF)](docs/Dune-Rush-Download-Instructions.pdf) · [Splat counts](#millions-of-splats-in-the-browser)
+![One ride through all five worlds](docs/media/five-worlds.gif)
 
-## Watch the world change
+*One ride, five worlds, no cuts. Recorded from the game.*
 
-The scenery changes around the moving bike: incoming splats appear from top to bottom with a cyan glow, while the outgoing world fades away. The bike, sky and audio follow the same transition.
+[Play it](#play-it) · [The idea](#the-idea-never-the-same-view-for-long) · [Numbers](#the-numbers)
 
-| Into the glowing night | Back to the desert |
+## The idea: never the same view for long
+
+The whole game is made from **one 12-metre stretch of road**.
+
+That stretch is a splat tile of about half a million points. The game repeats it and bends it into a 1.4 km circuit. A loop that short should get boring in seconds. It doesn't, because the view keeps changing:
+
+1. **One shape, five looks.** The same passage was restyled five times: mossy roots by day, the same roots glowing at night, frozen, neon, and painted countryside. Every look keeps the exact shape of the first one.
+2. **So worlds can swap in place.** Because the shapes match, the game can replace one world with another while you are moving. The new world rains in from the top, splat by splat, and the old one fades out. It takes one second. The bike under you, the music and the roadside props change with it.
+3. **The ride never stops.** The track, the stones you can hit, the physics and your lap time stay exactly the same through a switch. Only what you see and hear changes.
+
+That is the trick: a tiny piece of world feels like a long journey, because you are never looking at the same thing for long. And a new world is cheap to add. It is a new look of the same road, not a new scene.
+
+![The same spot on the track in all five worlds](docs/media/five-looks.jpg)
+
+*The same spot on the track, five times. Each world brings its own vehicle and its own finish gate.*
+
+## What is in the game
+
+- **Five worlds**, each with its own vehicle (woodland bike, night bike, snowmobile, street bike, vintage bike), music and ambience.
+- **A 1.4 km circuit** with a lap timer. Your best lap is saved in the browser.
+- **50 roadside models**, ten per world: towers, shrines, a windmill whose sails turn, flags that wave, a finish gate. Plus five rocks on the road to ride over.
+- **Real physics** for the bike against the stones at the side of the road (PhysX), five gears, 100 km/h top speed.
+- **An opening that is the game itself**: the title sits over the live track while the worlds cycle behind it.
+
+| Opening | Riding |
 | --- | --- |
-| ![Live rainfall transition into the glowing night world](docs/media/night-transition.gif) | ![Live rainfall transition back to the desert road](docs/media/desert-transition.gif) |
+| ![Opening screen over the live track](docs/media/opening.jpg) | ![Riding at night with the map and lap timer](docs/media/ride-hud.jpg) |
 
-These GIFs were captured from the running game. They have no audio.
+![Riding through the finish gate in the painted world](docs/media/finish-gate.gif)
 
-The reveal operates on individual splats in 3D, using staggered columns to make the next world appear to rain into place. Both world tile sets participate during the switch, and movement continues throughout. The reveal itself defaults to **1 second**, after the incoming scene is loaded and prepared; reduced-motion mode switches without the animation.
+## The numbers
 
-## Millions of splats in the browser
+| World | Splats in its tile | Copies on the track |
+| --- | ---: | ---: |
+| Root passage | 463,444 | 7 |
+| Glowing night | 584,107 | 7 |
+| Frozen passage | 592,352 | 7 |
+| Neon passage | 585,095 | 7 |
+| Painted passage | 575,475 | 7 |
 
-The environments are made from 3D Gaussian splats: small, oriented, translucent shapes that combine into the road, rock formations, roots and glowing scenery. Three.js and Spark render them in the browser, alongside the bike and rider meshes.
+- **2,800,473** splats across the five tiles. All five stay loaded, so once they are in, a switch never waits.
+- Up to **1.2 million** splats drawn per frame. The game picks the detail level to hold the frame rate.
+- Tile length **11.9 m**, lap length **1,396 m**.
 
-| World | Unique splats in its tile | Tile copies | Splat instances across the copies |
-| --- | ---: | ---: | ---: |
-| Desert road | 1,564,494 | 3 | **4,693,482** |
-| Root passage (day) | 605,277 | 4 | **2,421,108** |
-| Glowing night | 634,062 | 4 | **2,536,248** |
+The counts come from the tile files' own headers and from [`fantasy-worlds.json`](fantasy-worlds.json).
 
-The three source tiles contain **2,803,833 unique splats** in total. Copies share their source data and move around the camera to extend the ride. The instance totals count repeated tiles; they do not mean every splat is visible on screen at once.
+## Play it
 
-During a desert ↔ night transition, the two participating tile sets contain **7,229,730 splat instances** combined, before visibility and opacity filtering. The transition changes each splat's opacity, scale and glow as the two environments exchange places.
+You need Python 3.10 or newer and a desktop browser with WebGL2 (Chrome works well).
 
-Counts come directly from the bundled PLY headers and the copy lists in [`fantasy-worlds.json`](fantasy-worlds.json). The reveal is implemented in [`fantasy.html`](fantasy.html).
-
-### Ride through the details
-
-![Live ride through the daytime root passage](docs/media/day-ride.gif)
-
-### Screenshots
-
-| Desert road | Root passage (day) | Glowing night |
-| --- | --- | --- |
-| ![Desert road in the running game](docs/media/desert-road.jpg) | ![Daytime root passage in the running game](docs/media/root-passage-day.jpg) | ![Glowing night in the running game](docs/media/glowing-night.jpg) |
-
-[Download the illustrated setup guide (PDF)](docs/Dune-Rush-Download-Instructions.pdf). It includes MacBook download instructions, screenshots, clickable animation links and the three GIFs as attachments. The PDF pages show still frames; open the linked or attached GIFs to see motion.
-
-## Download and run
-
-1. Open [Releases](https://github.com/AliasgarTawa/dev-game/releases/latest) and download **dune-rush-ready-to-play.zip**. This ZIP contains the real assets, not Git LFS pointers.
-2. Extract the ZIP and open a terminal in the extracted `dune-rush` folder.
-3. With Python 3.10 or newer installed, run:
+1. Download **dune-rush-ready-to-play.zip** from the [latest release](https://github.com/AliasgarTawa/dev-game/releases/latest) and unzip it.
+2. In the unzipped `dune-rush` folder, run:
 
    ```sh
    python3 serve.py
    ```
 
-   On Windows, use `py -3 serve.py`.
+3. Open **http://127.0.0.1:17012/** and press **Ride**.
 
-4. Open **http://127.0.0.1:17012/worlds-opening/** and click **Start Race**. Keep the terminal running while you play.
+On Windows use `py -3 serve.py`. If the port is busy, run `python3 serve.py --port 17015`.
 
-If that port is busy, run `python3 serve.py --port 17015` and use the URL printed in the terminal. Do not open the HTML as a `file://` URL. Loading the large splat scenes can take several seconds. Use a browser with WebGL2 and hardware acceleration enabled.
-
-No Runpod instance, model-generation API, API keys, npm installation, or sibling project folder is needed to play. The menu can fetch Google Fonts and uses system fallbacks if unavailable. The game assets are bundled locally.
-
-## Clone with every asset and experimental scene
-
-Install [Git LFS](https://git-lfs.com/), then:
+To work from the source instead, clone with [Git LFS](https://git-lfs.com/). The splat tiles and models are LFS files, so GitHub's "Download ZIP" button gives you placeholders, not the game. The full repository is several gigabytes because it also holds earlier experiments.
 
 ```sh
 git lfs install
 git clone https://github.com/AliasgarTawa/dev-game.git
 cd dev-game
-git lfs pull
 python3 serve.py
 ```
 
-The repository contains the source, original and optimized bike/mascot assets, audio, all local `fantasy-*` scene configurations and splat files, and the built three-world demo. Large PLY, GLB and FBX assets use Git LFS. GitHub's **Code → Download ZIP** may contain only LFS pointers. Use the ready-to-play release ZIP to play without Git or LFS.
-
 ## Controls
 
-| Control | Action |
+| Key | Action |
 | --- | --- |
-| Start Race | Enter the daytime root passage |
-| Space | Start or pause riding |
-| W / S | Move forward / back |
-| A / D | Steer |
+| Enter | Ride (from the opening) |
+| ← → | Choose a world in the opening |
+| W | Ride |
+| S | Brake |
+| A / D | Lean |
+| Space | Cruise |
 | Drag | Look around |
-| World pictures | Switch worlds |
-| Speaker button | Toggle audio |
+| World pictures | Switch world while riding |
 
-## Project layout
+## Good to know
 
-- `fantasy.html`, `fantasy-rider.js`, `fantasy-audio.js`: current splat game, rider and sound mixer.
-- `fantasy-worlds.json`: world settings and the starting world.
-- `worlds-opening/`: ready-built menu with all runtime model, audio and image assets.
-- `worlds-models/`: rigged bikes and mascot.
-- `worlds-ui/`: three world-selection images.
-- `vendor/`: bundled Three.js and Spark renderer modules.
-- `src/`, `public/`, `index.html`: original Vite opening-screen source and assets, retained from the existing repository.
-- `bike-game.html`, `js/`, `opening/`: earlier bike preview implementation.
-- `assets/`: original models, source imagery and derived assets.
-- `tools/`: Blender and asset-processing scripts. The playable demo uses their prebuilt output.
-- `docs/PRESENTATION.md`: presentation content and implementation notes.
+- The first world appears after a short loading screen. The other four load behind it; their cards light up as they arrive.
+- Sound starts after your first click or key press.
+- It is built and tested on a desktop. It needs a decent GPU.
+- The best lap is saved per browser.
 
-## Opening-screen development
+## Built with
 
-The original opening-screen source remains editable with Node.js and npm:
+[Three.js](https://github.com/mrdoob/three.js), [Spark](https://github.com/sparkjsdev/spark) for the splats and [PhysX](https://github.com/NVIDIA-Omniverse/PhysX) through [physx-js-webidl](https://github.com/fabmax/physx-js-webidl). Licences are in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). The artwork, models and audio were supplied or generated for this project and carry no blanket licence for reuse.
 
-```sh
-npm ci
-npm run dev
-npm run build
-```
-
-These commands develop the original Vite menu. `python3 serve.py` serves the complete integrated game from `worlds-opening/` and `fantasy.html`.
-
-## Prototype limits
-
-Movement follows the road with limited lateral movement. Physics and collisions are not implemented. The splat worlds use substantial GPU memory, and performance depends on the browser and GPU. Sound needs a user click to start. Some close-up mesh/arm artifacts remain. The repository includes already-generated assets, not the cloud training environments or experiment backups used to create them.
-
-Third-party libraries retain their original licenses. See `THIRD_PARTY_NOTICES.md`. Asset generation tools and services have their own terms. No additional blanket license is granted over supplied or generated artwork here.
+The game is `fantasy.html` with its `fantasy-*.js` modules, `fantasy-worlds.json` and the `worlds-*` folders. The rest of the repository holds earlier experiments and the source assets.

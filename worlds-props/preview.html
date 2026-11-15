@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title>Props preview (game-size files)</title>
+<style>html,body{margin:0;background:#222}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"../vendor/three.module.js","three/addons/":"../vendor/addons/"}}</script>
+<script type="module">
+// Dev check: every converted prop as the game loads it (smooth normals recomputed), front three-quarter view, one row per world.
+import * as THREE from 'three'; import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+const q = new URLSearchParams(location.search), C = +q.get('cell') || 190, worlds = (q.get('worlds') || 'day,night,winter,cyberpunk,ghibli').split(',');
+const idx = await (await fetch('./props.json', {cache: 'no-store'})).json();
+const renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true}); renderer.setPixelRatio(1); renderer.setSize(C * 10, C * worlds.length); document.body.append(renderer.domElement);
+const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 1.6)); const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(-2, 4, 3); scene.add(sun);
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50), loader = new GLTFLoader(), items = [];
+for (const [r, w] of worlds.entries()) for (let s = 1; s <= 10; s++) { const e = idx[w + '/' + s]; if (!e) continue;
+  const g = await loader.loadAsync('./' + e.file + '?v=' + e.bytes); g.scene.traverse(o => { if (o.isMesh) { if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals(); } });
+  const b = new THREE.Box3().setFromObject(g.scene), c = b.getCenter(new THREE.Vector3()); g.scene.position.sub(c); g.scene.visible = false; scene.add(g.scene); items.push({r, s, o: g.scene, size: b.getSize(new THREE.Vector3())}); }
+const yaw = (+q.get('yaw') || 35) * Math.PI / 180; renderer.setScissorTest(true); renderer.setClearColor(0x2a2a2e);
+for (const it of items) { it.o.visible = true; const d = Math.max(it.size.x, it.size.y, it.size.z) * 2.3; cam.position.set(Math.sin(yaw) * d, d * 0.28, Math.cos(yaw) * d); cam.lookAt(0, 0, 0);
+  const x = (it.s - 1) * C, y = (worlds.length - 1 - it.r) * C; renderer.setViewport(x, y, C, C); renderer.setScissor(x, y, C, C); renderer.render(scene, cam); it.o.visible = false; }
+window.__done = items.length; document.title = 'done ' + items.length;
+</script>

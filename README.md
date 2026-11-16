@@ -6,9 +6,11 @@ A bike game that runs in the browser, built from 3D Gaussian splats by **Arjun B
 
 [![Watch the full Dune Rush demo](docs/media/five-worlds.gif)](https://drive.google.com/file/d/1i5IOV2fZ__yzW28d4k0ejvLv2-s9DbPW/view?usp=drivesdk)
 
-**[▶ Watch the full demo — 1:13, with audio](https://drive.google.com/file/d/1i5IOV2fZ__yzW28d4k0ejvLv2-s9DbPW/view?usp=drivesdk)**
+### ▶ Watch the full demo (1:13, with sound)
 
-*Click the preview or the link above to watch the video on Google Drive.*
+https://github.com/user-attachments/assets/b0df6f29-b3f4-4bb8-9ea0-93b9b2ae8a83
+
+*Press play above. For full quality, [watch it on Google Drive](https://drive.google.com/file/d/1i5IOV2fZ__yzW28d4k0ejvLv2-s9DbPW/view?usp=drivesdk).*
 
 [Play it](#play-it) · [The idea](#the-idea-never-the-same-view-for-long) · [Numbers](#the-numbers)
 
@@ -71,7 +73,7 @@ You need Python 3.10 or newer and a desktop browser with WebGL2 (Chrome works we
 
 3. Open **http://127.0.0.1:17012/** and press **Ride**.
 
-On Windows use `py -3 serve.py`. If the port is busy, run `python3 serve.py --port 17015`.
+On Windows use `py -3 serve.py`. If the port is busy, run `python3 serve.py --port 17015`. There is also a two-page [illustrated guide (PDF)](docs/Dune-Rush-Download-Instructions.pdf).
 
 To work from the source instead, clone with [Git LFS](https://git-lfs.com/). The splat tiles and models are LFS files, so GitHub's "Download ZIP" button gives you placeholders, not the game. The full repository is several gigabytes because it also holds earlier experiments.
 

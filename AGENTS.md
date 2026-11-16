@@ -1,48 +1,38 @@
 # Dune Rush
 
-Desert dirt-bike racing game. Vite + Three.js (vanilla JS, no framework).
+A browser bike game on 3D Gaussian splats. One short road tile, five looks of it (day, night, winter, cyberpunk, ghibli), bent into a 1,396 m circuit. You can switch world while riding. three.js r180 + Spark, plain ES modules, no build step.
 
-## Commands
-- `npm run dev` — dev server on http://localhost:3000 (port from `PORT` in `.env`)
-- `npm run build` — production build to `dist/` (verify this passes after changes)
-- `npm run preview` — serve the built `dist/`
-- `npm run optimize:assets` — regenerate the web copies in `public/models/` and `public/opening/` from the originals in `assets/` (gltf-transform: meshopt geometry, 2048px WebP textures, no simplification; poster as WebP)
+## Run
+- `python3 serve.py` then open http://127.0.0.1:17012/ (`--port N` for another port). `serve.py` checks that the large LFS files are real files, not pointers, and serves `fantasy.html` at `/`.
+- Clone with Git LFS (`*.ply`, `*.glb`, `*.fbx` are LFS). GitHub's "Download ZIP" gives pointers, not the game.
+- There is no build. Edit the files and reload. Chrome caches `/` hard: reload with the cache bypassed after editing `fantasy.html`.
 
-## Structure
-- `index.html` — opening page markup: photo backdrop, 3D canvas, model load status, menu, audio controls, toast
-- `src/main.js` — entry; boots the 3D scene, model load/error/retry status, menu and audio
-- `src/scene.js` — opening 3D layer: loads the bike + mascot GLBs, mounts the mascot on the seat, matches the camera to the photo (vanishing point, focal length, eye height) and places the bike on the road from the UI layout; idle motion, Start Race launch, `onRide` audio data
-- `public/opening/first-frame.webp`, `public/models/*.glb` — derived web copies (never edit the originals in `assets/`)
-- `scripts/optimize-assets.mjs` — builds those derived copies
-- `src/menu.js` — menu actions, keyboard nav, toast
-- `src/audio.js` — shared audio context, music/effects buses, lazy loading, saved mix, Settings dialog and visibility pause
-- `src/audio-effects.js` — engine crossfade/RPM, tire/wind layers, spatial panning and bounded procedural cues
-- `public/audio/` — generated menu music and bike/surface loops; provenance and mix details in `AUDIO.md`
-- `src/style.css` — design tokens + UI styles
+## The game files
+- `fantasy.html`: the whole game page (renderer, track, riding, world switch, opening, map, lap timer, HUD). Dense one-line JS: keep patches small and never put a `//` comment in the middle of a one-line statement.
+- `fantasy-rider.js`: the five rigged vehicles, the mascot's arms and the switch effect on the bike.
+- `fantasy-audio.js`: music, ambience, engine, tyres and switch cues per world (Web Audio). No audio nodes are created in the render loop.
+- `fantasy-physx.js`: PhysX (WASM, `vendor/physx/`) for the bike against the roadside stones and the five rocks.
+- `fantasy-props.js`: the 50 roadside models, ten per world.
+- `fantasy-worlds.json`: worlds, tile files, card pictures, track, `default_world`.
+- `fantasy-worlds-roots-<world>-tile-light.ply`: the five splat tiles the game loads (day, night, winter, cyberpunk, ghibli).
+- `worlds-models/`: rigged vehicles and rider. `worlds-props/`: prop models plus `layout.json` (where each slot sits on the track) and `props.json`. `worlds-ui/`: world card pictures. `worlds-opening/`: a redirect to `/` and the world audio in `worlds-opening/audio/worlds/`.
+- `vendor/`: three.js, Spark and PhysX builds. Licences in `THIRD_PARTY_NOTICES.md` and `vendor/licenses/`.
 
-## Notes
-- `MESHY_API_KEY` lives in `.env` (gitignored). Never expose it client-side: Vite only exposes `VITE_`-prefixed vars, so keep the Meshy key unprefixed and call Meshy from a server/script.
-- Dependencies are pinned to exact versions.
-- The scene sends normalized speed, boost, throttle, roughness and pan to audio via `onRide`. Keep sound automation capped at 20 Hz; never create audio nodes in the render loop.
-- Audio is static at runtime. No ElevenLabs API key belongs in the app or client bundle.
+## How it works
+- Every world is a restyle of the same root passage, so all five tiles have the same shape. That is what allows a switch in place: the new world rains in top-down over one second while the old one fades, and the bike, props and sound switch with it. Track, physics and lap time carry on unchanged.
+- Each tile is 11.907 m long, drawn 7 times and bent onto the closed circuit. Ride position is `s`; metres = `s * 0.19907`.
+- The opening is the live game behind an overlay (`#open`). Ride (Enter) starts the race from the line; ← → choose the world.
+- Lap times use ride time (physics steps, each clamped to 0.05 s). The crossing is interpolated inside the step. The best lap is saved in `localStorage` under `dune-best-lap-1:<lap length in m>`. A teleport voids the current lap.
 
----
+## Testing hooks
+- URL options: `?open=0` skips the opening, `?style=<world>` sets the starting world, `?raf=timer` keeps the loop running in a hidden or background tab, `?sound=0`, `?physx=0`, `?props=0`, `?laps=reset`, `?res=` render scale, `?lodn=` splat budget.
+- In the console: `__step(n,dt)` runs fixed physics steps, `ride(fs,x)` teleports, `chooseStyle(id,animated)` switches world, `__bike` and `__px` for the bike and physics, `__laps` for lap data, `__open` for the opening, `__sound.state()` and `__sound.levels()` for the mixer, `__fps`.
+- Judge changes by rendered frames at a real window size, while riding, not by code or aimed stills alone. Background tabs are throttled and can lose the WebGL context when several game tabs are open.
 
-## Desert opening screen
+## Rules
+- Splat tiles, models and audio are supplied or generated assets. Don't regenerate or overwrite them; add new versions next to them.
+- Keep API keys out of the repo and the page. The game makes no calls to paid services at runtime.
+- After changing a `fantasy-*.js` module, bump its `?v=` stamp in `fantasy.html` so browsers fetch the new copy.
 
-When building or changing the opening/title screen, use the supplied desert frames as the visual source of truth. Read [the desert asset guide](assets/desert/README.md) before choosing images or generating more.
-
-- Start with `assets/desert/opening/first-frame.png` for the opening background. Preserve its sandstone arch, sandy road, warm earth tones, blue sky, and natural photographic lighting.
-- Use the supplied images directly where they fit. Generate additional matching frames from these image references when the screen needs more views or a longer sequence; follow the prompts and continuity checks in the asset guide.
-- The 64 files in `assets/desert/reference-views/` are spatial reference views, not a chronological animation. Do not play their numeric order as a movie.
-- The opening/title screen must also display the supplied **3D bike mesh** (`assets/models/desert-bike/desert-bike.glb`) and **3D mascot mesh** (`assets/models/mascot/rider.glb`). Use the actual textured GLB models, with the mascot mounted on the bike, as a 3D foreground composition over the desert background. This requirement applies to the opening screen itself, before entering gameplay.
-- Preserve the existing bike design and orange, laptop-free mascot. Match their scale, perspective, and warm lighting to the desert; frame both clearly on desktop and mobile without obscuring the title or Start button. Use an over-the-shoulder composition as the starting layout and adjust for the opening-screen design.
-- Keep the bike and mascot as separately loaded 3D objects and keep title/buttons in a separate UI layer. Do not substitute generated pictures or bake the models into the landscape frames. Preserve the original GLBs; any optimized copies should be derived assets.
-- These GLBs contain no animation clips. Do not assume a rig or wheel animation exists; use a static pose or subtle whole-object motion unless animation is deliberately implemented. Keep any idle motion disabled for reduced-motion users.
-- Preserve the originals. Save new outputs in `assets/desert/generated/` with their prompt, reference filenames, model/settings, and sequence order.
-- Check image loading, responsive crops, text contrast, reduced-motion behavior, and visual continuity before shipping the opening screen.
-
-### Implementation notes
-- The backdrop `<img class="backdrop">` uses `object-fit: cover`; `src/scene.js` reads its box and `object-position` to align the 3D camera with the photo. If you change the crop or the `PHOTO` calibration constants, re-check that the tyres sit on the road at several viewport sizes.
-- On stacked (portrait/narrow) layouts the photo is shifted down by `--backdrop-top` and the sky colour (`--color-sky`) fills the gap so the arch stays clear of the title.
-- The bike's ground point comes from the layout: beside the menu text on wide screens, just above the buttons on stacked screens. Keep the title and buttons inside `.brand` / `.actions` so that measurement keeps working.
+## Earlier work in this repository
+`index.html`, `src/`, `public/`, `package.json` and `scripts/optimize-assets.mjs` are the first desert opening menu (Vite, `npm run dev`). The game no longer uses them; its opening is built into `fantasy.html`. `docs/ROOTS-*.md` are notes from building the root passage's sound. `MESHY_API_KEY` for that menu stays in `.env` (gitignored) and must never be exposed client-side.

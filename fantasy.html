@@ -34,7 +34,7 @@ button.active{background:#d9ecc0;color:#14201e}#status{color:#cfe3b4;margin:6px 
 // fantasy-scenes.json lists the scenes; each scene's JSON (from lane_review.py) holds the filmed path, the up axis, scene units per
 // metre (from an assumed 1.6 m camera height) and the corridor the review supports: half-width, height range, turn limit, ride-on past the end.
 import * as THREE from 'three';
-import {SparkRenderer,SplatMesh,dyno} from '@sparkjsdev/spark';import {createRider} from './fantasy-rider.js?v=1794758073';import {createAudio} from './fantasy-audio.js?v=1794758073';import {createProps} from './fantasy-props.js?v=1794758073';
+import {SparkRenderer,SplatMesh,dyno} from '@sparkjsdev/spark';import {createRider} from './fantasy-rider.js?v=1794980868';import {createAudio} from './fantasy-audio.js?v=1794980868';import {createProps} from './fantasy-props.js?v=1794980868';import {createSortKeys} from './fantasy-sort.js?v=1794980868';
 const $=id=>document.getElementById(id),status=$('status');
 window.addEventListener('unhandledrejection',e=>status.textContent='Load error: '+e.reason);
 const params=new URLSearchParams(location.search);
@@ -211,32 +211,61 @@ if(WORLDS){   // only the three worlds, as a game HUD: a picture card per world 
  let coverState=0,readyAt=0;
  // Speed. Measured on this Mac (M3, 1440x900): frame time follows the number of splats drawn (about 12 ms per million),
  // far more than the pixel count. So the game draws at 1x resolution with a splat budget (level of detail picks which), and
- // when the frame rate stays under 45 for two seconds in a row it steps to a faster level. It steps back
- // up once after ten seconds at the display's full rate, and stays down if that brings the slowness back. ?res= and ?lodn= fix either one.
+ // when the frame rate stays under the display's for two seconds in a row it steps to a faster level. It steps back
+ // up once after eight seconds at the display's full rate, and stays down if that brings the slowness back. ?res= and ?lodn= fix either one.
  // Levels run from sharpest to fastest: splat budget and render resolution (1x is half the sharpness of a Retina display).
  // The level in use is remembered in this browser, so the next visit starts where this one settled.
- {const fixedR=+params.get('res')||0,fixedN=+params.get('lodn')||0,levels=[[1.2e6,1.5],[1.2e6,1.25],[1.0e6,1.25],[1.0e6,1],[.85e6,1]];
-  // starts at 1.0M at 1x; a level is given up when the frame rate stays under 48, and a sharper one is tried only at 57 or
-  // more. The lowest level is 0.85M: below that the picture turns to mush (0.7M and 0.55M were tried as lower steps and
-  // the test pane sank to them), and the budget already falls with speed.
-  let lvl=3,slow=0,fast=0,upAt=-1e9,upAfter=0,upWait=30000;
-  try{const saved=+localStorage.getItem('dune-quality-level-4');if(Number.isInteger(saved)&&saved>=0&&saved<levels.length&&localStorage.getItem('dune-quality-level-4')!==null)lvl=saved}catch(e){}
-  const applyLevel=()=>{const [n,r]=levels[lvl];window.__lodBase=fixedN||n;if(LOD&&!fixedN)spark.lodSplatCount=n;if(!fixedR)renderer.setPixelRatio(Math.min(devicePixelRatio,r));try{localStorage.setItem('dune-quality-level-4',String(lvl))}catch(e){}};
+ // Built for frame rate first (the user's choice, 2026-11-17: "just build for performance"). The levels stop at 1.0M splats
+ // at 1.25x: the two sharper ones that used to sit above (1.2M at 1.25x and at 1.5x) ran at 48 to 55 frames a second on
+ // this Mac at Retina density, where 1.25x held 57 to 61, and pixels are about 60% of the graphics card's work. And a level
+ // is given up as soon as the game falls a little short of the display (92% of its rate: 55 on a 60 Hz screen) for two
+ // seconds, not at 46 to 48 as before, so it holds the display's rate instead of hovering under it. ?sharp=1 puts the old
+ // levels and the old marks back, to compare.
+ {const SHARP=params.get('sharp')==='1',fixedR=+params.get('res')||0,fixedN=+params.get('lodn')||0,levels=SHARP?[[1.2e6,1.5],[1.2e6,1.25],[1.0e6,1.25],[1.0e6,1],[.85e6,1]]:[[1.0e6,1.25],[1.0e6,1],[.85e6,1]];
+  // starts at 1.0M at 1x; a sharper level is tried only after 8 s at 95% of the display's rate or more (57 at 60 Hz). The
+  // lowest level is 0.85M: below that the picture turns to mush (0.7M and 0.55M were tried as lower steps and the test
+  // pane sank to them), and the budget already falls with speed.
+  // The display's rate is taken as the best one-second frame rate seen so far, 60 at most: with the bike stopped only a
+  // third of the frames are drawn (idleSkip), so the loop runs at the display's own rate there and shows it. That keeps
+  // a 50 Hz screen, or a browser holding the page to 30, from reading as "slow" for ever.
+  let lvl=SHARP?3:1,slow=0,fast=0,upAt=-1e9,upAfter=0,upWait=30000,peak=0;
+  const QKEY=SHARP?'dune-quality-level-5':'dune-quality-level-6';      // each set of levels remembers its own
+  try{const saved=+localStorage.getItem(QKEY);if(Number.isInteger(saved)&&saved>=0&&saved<levels.length&&localStorage.getItem(QKEY)!==null)lvl=saved}catch(e){}
+  const applyLevel=()=>{const [n,r]=levels[lvl];window.__lodBase=fixedN||n;if(LOD&&!fixedN)spark.lodSplatCount=n;if(!fixedR)renderer.setPixelRatio(Math.min(devicePixelRatio,r));try{localStorage.setItem(QKEY,String(lvl))}catch(e){}};
   if(fixedR)renderer.setPixelRatio(fixedR);applyLevel();
-  window.__res=()=>({ratio:renderer.getPixelRatio(),splatBudget:spark.lodSplatCount,level:lvl,lod:LOD});
+  window.__res=()=>({ratio:renderer.getPixelRatio(),splatBudget:spark.lodSplatCount,level:lvl,levels:levels.length,lod:LOD,displayRate:Math.min(60,Math.max(24,peak))});
   let graceUntil=1e18,wasSwitching=false;
-  resFrame=(fps,windowMs)=>{const now=performance.now();if(coverState===2&&graceUntil===1e18)graceUntil=now+8000;if(transition)wasSwitching=true;else if(wasSwitching){wasSwitching=false;graceUntil=Math.max(graceUntil,now+3000)}
+  resFrame=(fps,windowMs)=>{const now=performance.now();if(coverState===2&&graceUntil===1e18)graceUntil=now+8000;if(windowMs<=1500&&!document.hidden&&fps>peak)peak=fps;if(transition)wasSwitching=true;else if(wasSwitching){wasSwitching=false;graceUntil=Math.max(graceUntil,now+3000)}
    // skip loading, the first seconds of the ride (the other world is still being prepared), switches and a throttled tab
    if(coverState!==2||transition||now<graceUntil||document.hidden||windowMs>1500||fps<8){slow=0;return}
-   slow=fps<48?slow+1:0;fast=fps>=57?fast+1:0;
-   // Down after 2 s under 45 fps. Back up after 8 s at 50 fps or more, so one dip does not leave the picture soft for the
-   // rest of the ride. If a step up brings the slowness back within 20 s, wait before trying again (1 min, doubling to 8).
+   // A bike that is standing still is not judged either. Stopped, the nearest ground and walls are drawn in full detail and a
+   // frame costs about twice what it does riding (graphics card time measured 44 ms stopped against 24 ms at 30 km/h), so a
+   // wait on the start line used to push the level down for the whole ride that followed. The picture is still then anyway.
+   if(mode==='ride'&&!opening&&Math.abs(bike.v)<2){slow=0;return}
+   // While frames are paced to the graphics card (see below) the card never has a frame waiting, which costs about a
+   // quarter of the frame rate (measured at one load: 38 to 42 paced, 50 to 55 unpaced). So paced, 38 is the mark that
+   // unpaced would be back above the 48 that started the pacing, and pacing stops there.
+   const paced=PACE.auto&&PACE.on;
+   // With the sort distances on a worker the same load reads about 2 frames a second lower, because the bursts of frames
+   // that used to follow each stall are gone (top level, one ride alternating the two every 6 s, Low Power Mode off:
+   // 48.0 against 50.2, with 11 frames of 38 ms or longer against 141). So "slow" starts 2 lower there, and the game
+   // never settles on a lower level than it did before.
+   const rate=Math.min(60,Math.max(24,peak)),slowAt=SHARP?(sortKeys&&sortKeys.state.on&&!sortKeys.state.pause?46:48):Math.round(rate*.92),fastAt=SHARP?57:Math.round(rate*.95);
+   slow=fps<slowAt?slow+1:0;fast=fps>=(paced?38:fastAt)?fast+1:0;
+   // Down after 2 s under slowAt (55 at 60 Hz; with ?sharp=1, 48, or 46 with the worker for the reason above). Back up after
+   // 8 s at fastAt or more (57 at 60 Hz), so one dip does not leave the picture soft for the rest of the ride. If a step up brings the slowness back within 20 s, wait before trying again (1 min, doubling to 8).
    if(slow>=2&&lvl<levels.length-1){lvl++;slow=0;fast=0;if(now-upAt<20000){upWait=Math.min(480000,upWait*2);upAfter=now+upWait}applyLevel()}
-   else if(fast>=8&&lvl>0&&now>=upAfter){lvl--;fast=0;upAt=now;applyLevel()}}}
+   // On the last level and still slow, the graphics card is the limit and there is no quality left to give up: from here
+   // frames are paced to the card (PACE, at the end of this file), which evens them out.
+   else if(slow>=2&&PACE.auto&&!PACE.on&&!PACE.broken){PACE.on=true;slow=0;fast=0;if(now-upAt<20000){upWait=Math.min(480000,upWait*2);upAfter=now+upWait}}
+   // Paced and at 38 or more for 8 s: pacing stops (a step up in level is earned afterwards, unpaced, at 57). If that
+   // brings the slowness back within 20 s, pacing resumes and the next try waits longer, like a failed step up.
+   else if(paced&&fast>=8&&now>=upAfter){PACE.on=false;fast=0;slow=0;upAt=now}
+   else if(!paced&&fast>=8&&lvl>0&&now>=upAfter){lvl--;fast=0;upAt=now;applyLevel()}}}
  const coverFrame=()=>{if(coverState===2)return;if(!/ready$/.test(status.textContent))return;if(!readyAt){readyAt=performance.now();splatsIn()}
   const assets=riderIn||performance.now()-readyAt>8000;
   if(coverState===0&&assets){coverState=1;readyAt=performance.now()}
-  if(coverState===1&&performance.now()-readyAt>450){coverState=2;window.__liftCover&&window.__liftCover();if(OPENING)enterOpening(true);else{setCruise(params.get('cruise')==='1');if(sound)sound.start()}}};
+  if(coverState===1&&performance.now()-readyAt>450){coverState=2;window.__liftCover&&window.__liftCover();if(LOD&&params.get('trim')!=='0')setTimeout(()=>trimRoom(),4000);if(OPENING)enterOpening(true);else{setCruise(params.get('cruise')==='1');if(sound)sound.start()}}};
  addEventListener('keydown',e=>{if(e.code==='Space'&&!e.repeat&&!opening){e.preventDefault();setCruise(!window.__cruise)}});
  if(params.get('sound')!=='0'){const sb=mk('button',{className:'wicon',type:'button',id:'wsound'},icons);
   const show=st=>{const on=st.enabled&&st.running;sb.innerHTML=on?IC.on:IC.off;sb.classList.toggle('muted',!on);sb.title=on?'Sound on: click to mute':st.enabled?'Sound is waiting: click to start it':'Sound off: click to turn on';sb.setAttribute('aria-label',sb.title);sb.setAttribute('aria-pressed',String(on))};
@@ -335,7 +364,7 @@ let sndS=null,sndDir=1;
 function soundFrame(dt){hudFrame();const pos=camera.position;if(sndPos&&dt>0){const v=pos.distanceTo(sndPos)/upm/dt;sndSpeed+=((v<60?v:0)-sndSpeed)*Math.min(1,dt*6);if(sndS!==null&&s!==sndS)sndDir=s<sndS?-1:1}sndPos=(sndPos||pos.clone()).copy(pos);sndS=s;
  if(!sound)return;try{
  if(transition&&transition!==sndT)sound.cue(transition.to);sndT=transition;
- sound.update({speed:opening?0:Math.abs(bike.v),throttle:opening?0:bike.throttle,rpm:opening?0:bike.rpm,scrub:opening?0:Math.min(1,bike.scrub/4),active:mode==='ride'&&!opening,from:transition?transition.from:styleId,to:transition?transition.to:styleId,p:transition?revealP.value:1})}catch(e){console.error(e);sound=null}}
+ sound.update({speed:opening?0:Math.abs(bike.v),throttle:opening?0:bike.throttle,rpm:opening?0:bike.rpm,scrub:opening?0:Math.min(1,bike.scrub/4),active:mode==='ride'&&!opening,from:transition?transition.from:styleId,to:transition?transition.to:styleId,p:transition?(transition.roll?transition.p:revealP.value):1})}catch(e){console.error(e);sound=null}}
 function renderAll(){renderer.render(scene,camera);if(rider&&mode==='ride'&&!opening)try{rider.render(camera.aspect,{yaw,pitch,fov:camera.fov})}catch(e){console.error(e);rider=null}}
 
 let laneCur=null,switchTo=null;   // worlds: current (eased) lane {l,r,yaw}; the world a switch is heading to
@@ -416,12 +445,27 @@ function bendModifier(id){return dyno.dynoBlock({gsplat:dyno.Gsplat},{gsplat:dyn
   `)});
  return {gsplat:m.apply({gsplat,seg:bSeg,kv:bKv,ln:bLn,p0:bP0,tu:bTu,rt:bRt,upv:bUp,ax:bAx,gr:gradeOf(id)}).gsplat}})}
 if(BEND)bendSync();
+// Sort distances on a worker (fantasy-sort.js). The renderer sorts the splats by distance whenever the camera moves, and
+// reads those distances back from the graphics card; in Chrome that read waits for the graphics card, and while riding
+// it blocked the page for 110 to 230 ms two to three times a second. The worker computes the same distances from the
+// tile centres, the level-of-detail picks and the bend below, so the page never waits. It checks itself against the
+// renderer's own read the first time each world is ridden and steps aside on any mismatch; during a world switch the
+// renderer's own read is used. ?cpusort=0 turns it off.
+let sortKeys=null;try{if(WORLDS&&BEND&&LOD&&params.get('cpusort')!=='0')sortKeys=createSortKeys(spark,{P0,Tu,RIGHT,up,hold:()=>{try{return (!!transition||busy)&&!(transition&&transition.roll)}catch(e){return false}},bend:q=>{q=q||{};const s=bSeg.value,k=bKv.value,l=bLn.value;q.a0=s.x;q.cx=s.y;q.cy=s.z;q.phi=s.w;q.k0=k.x;q.k1=k.y;q.k2=k.z;q.k3=k.w;q.ln0=l.x;q.ln1=l.y;return q}})}catch(e){console.error(e)}
+// With the worker a new draw order can be ready every frame (53 a second were measured), and each one is an upload of four
+// bytes for every splat the renderer has room for: 4 MB at first, about 11 MB once a world switch has drawn two worlds at
+// once (the renderer never gives that room back). At 30 a second those 11 MB uploads blocked the page for a third of the
+// time. So the gap between orders is 30 ms per 4 MB (set once a second in tick): still fresher than the order ever was
+// before (one every 100 to 400 ms). ?sortms= fixes the gap.
+const SORT_MS=params.get('sortms')!==null?+params.get('sortms'):-1;
+if(sortKeys)spark.minSortIntervalMs=SORT_MS>=0?SORT_MS:30;
+window.__sortKeys=sortKeys;
 // Roadside props (fantasy-props.js): ten models per world beside the path, placed on the track by bendPose() and swapped with
 // the same rain sweep on a world switch. ?props=0 turns them off. Any failure drops the props, never the page.
 // A prop is only drawn where its ground is: the tile copy it stands in must be in place and faded in.
 const _pc=new THREE.Vector3();
 function propCopyOpacity(id,a){const set=sets[id],g=set&&set.W;if(!g)return 0;const k=Math.round((_pc.copy(P0).addScaledVector(Tu,a).sub(g.O).dot(g.Pu)-g.c0)/g.Pl),M=set.length,m=set[((k%M)+M)%M];
- return Math.abs(_pc.copy(m.position).sub(g.O).dot(g.Pu)-k*g.Pl)<g.Pl*.25?(m.opacity??1):0}
+ return Math.abs(_pc.copy(m.position).sub(g.O).dot(g.Pu)-k*g.Pl)<g.Pl*.25&&m.visible?(m.opacity??1):0}
 // the road's height (m, about the tile's median) at a place along the straight line, from the current world's road profile: rocks lie on it
 function propRoadH(a){const g=sets[styleId]&&sets[styleId].W;if(!g||!g.road)return 0;const r=g.road;let f=((_pc.copy(P0).addScaledVector(Tu,a).sub(g.O).dot(g.Pu)/upm)%r.len)/r.len*r.n;if(f<0)f+=r.n;const i=Math.floor(f)%r.n,q=f-Math.floor(f);return r.h[i]*(1-q)+r.h[(i+1)%r.n]*q}
 let props=null;try{if(WORLDS&&BEND&&params.get('props')!=='0')props=createProps(scene,{worlds:WORLDS.map(w=>w.id),P0,Tu,RIGHT,up,upm,eye,bendAxis,bendPose,lapLen:TRACK.reduce((q,t)=>q+t.len,0),period:new THREE.Vector3(...WORLDS[0].period).length(),after:splatsInP,copyOpacity:propCopyOpacity,roadHeight:propRoadH,renderer,camera})}catch(e){console.error(e)}
@@ -502,14 +546,61 @@ let copySpeed=0,copyMoved=false;      // the bike's speed (m/s), set by the ride
 const COPY_FADE={hold:params.get('copyfade')==='0'?-1:(+params.get('copyhold')||300),ramp:300},fadingCopies=new Set();
 function updateWorldCopies(){if(!WORLDS)return;const cp=WORLDS?ridePos:camera.position,now=performance.now();
  for(const set of Object.values(sets)){const g=set.W;if(!g)continue;const M=set.length,kFar=g.kFar??=Math.max(...g.ks),n=g.n=Math.floor((_wp.copy(cp).sub(g.O).dot(g.Pu)-g.c0)/g.Pl)+1;   // camera between the centres of copies -1 and 0: the most road ahead
-  for(const k0 of g.ks){const k=n+k0,m=set[((k%M)+M)%M];_wp.copy(g.O).addScaledVector(g.P,k);if(!m.position.equals(_wp)){m.position.copy(_wp);if(COPY_FADE.hold>=0&&k0===kFar){m.opacity=0;m.userData.movedAt=now;fadingCopies.add(m);copyMoved=true}}}}
+  for(const k0 of g.ks){const k=n+k0,m=set[((k%M)+M)%M];_wp.copy(g.O).addScaledVector(g.P,k);if(!m.position.equals(_wp)){m.position.copy(_wp);if(COPY_FADE.hold>=0&&k0===kFar){m.opacity=0;m.userData.movedAt=now;m.userData.waitPick=false;m.userData.fadeAt=0;fadingCopies.add(m);copyMoved=true}}}}
  // at speed the far copy is reached sooner, so the fade shortens with it (to half at 65 km/h and above); the wait before it
  // stays, because the copy's detail is only right once the next detail pick has come back (about 0.3 s)
  const fadeK=Math.max(.5,Math.min(1,9/Math.max(1,copySpeed)));
- for(const m of fadingCopies){const t=(now-m.userData.movedAt-COPY_FADE.hold)/(COPY_FADE.ramp*fadeK);if(t>=1){m.opacity=1;fadingCopies.delete(m)}else m.opacity=Math.max(0,t)}}
+ // A copy the roll-in switch has just shown (waitPick) stays at 0 until its first detail pick has arrived (at most
+ // PICK_WAIT ms), and only then fades in: until then the sort distances cannot be worked out on the worker and every sort
+ // went to the blocking read from the graphics card (the first steps of a switch, while the renderer rebuilds the world's
+ // detail tree, took longer than the fixed wait).
+ // The fade starts from the FIRST pick after the copy was shown, kept in fadeAt: pickAt gives the latest pick, and picks
+ // keep coming while the view moves, so going by it held copies part-faded (and the props on them hidden) for seconds.
+ for(const m of fadingCopies){const d=m.userData;
+  if(d.waitPick){const pa=sortKeys&&sortKeys.pickAt?sortKeys.pickAt(m):-1;
+   if(pa>d.movedAt){d.waitPick=false;d.fadeAt=pa}
+   else if(pa>=0&&now-d.movedAt<PICK_WAIT){m.opacity=0;continue}
+   else{d.waitPick=false;if(pa>=0)d.fadeAt=now}}      // no pick in time (fade from now, not with a jump), or the worker sort is off
+  const s0=Math.max(d.movedAt+COPY_FADE.hold,d.fadeAt||0),t=(now-s0)/(COPY_FADE.ramp*fadeK);
+  if(t>=1){m.opacity=1;fadingCopies.delete(m)}else m.opacity=Math.max(0,t)}}
+const PICK_WAIT=1200;
 const worldLane=id=>{const w=styleOf(id);return {l:w.lane_left_m,r:w.lane_right_m,yaw:w.yaw_deg};};
 const skyOf=id=>styleOf(id).sky?1:0;
 function setSky(a){if(!dome)return;dome.material.opacity=a;dome.visible=a>0.001;}
+// World skies. The tiles hold no sky: wherever the roots open (looking up, the outside of a left turn) the flat background
+// colour showed. Each world now has a painted band of sky behind the splats, from the horizon to 45 degrees up, at about
+// the sharpness of the screen (8192 x 1024; softer, smaller pictures read as blur). Above the band the flat colour shows;
+// the band ends in that colour. The picture is a world's "sky_image" in fantasy-worlds.json (
+// made by runs/worlds-sky-2026-11-17/make_skies.py): it is the world's own background colour at the horizon, so the haze
+// at the splats' edges still melts into it, and gains sky, branches and each world's own details with height. It is drawn
+// at infinity on a sphere that follows the camera, as one textured draw (no measurable cost), and cross-fades with the
+// world switch. Until a picture has loaded, the flat colour shows as before. ?wsky=0 turns it off.
+// It is one solid (not see-through) draw with both worlds' pictures mixed in its shader, so it is drawn first, before the
+// roadside props and the splats. (As see-through spheres, one per world, it was drawn after the props and painted over the
+// finish gate and everything behind it.)
+const wsky={on:!!WORLDS&&params.get('wsky')!=='0',tex:{},mesh:null};
+if(wsky.on){const geo=new THREE.SphereGeometry(100,128,16,0,Math.PI*2,Math.PI/4,Math.PI/4),fx=flat(Tu),basis=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(fx,up,new THREE.Vector3().crossVectors(fx,up).normalize()));
+ const mat=new THREE.ShaderMaterial({uniforms:{a:{value:null},b:{value:null},k:{value:0}},side:THREE.BackSide,depthTest:false,depthWrite:false,transparent:false,toneMapped:false,
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+  fragmentShader:'uniform sampler2D a;uniform sampler2D b;uniform float k;varying vec2 vUv;void main(){vec2 q=vec2(vUv.x,1.0-vUv.y);gl_FragColor=vec4(mix(texture2D(a,q).rgb,texture2D(b,q).rgb,k),1.0);\n#include <colorspace_fragment>\n}'});
+ const m=wsky.mesh=new THREE.Mesh(geo,mat);m.quaternion.copy(basis);m.frustumCulled=false;m.visible=false;m.renderOrder=-10;m.onBeforeRender=(r,sc,cam)=>{m.position.copy(cam.position);m.updateMatrixWorld()};scene.add(m);
+ // Each picture is 33 MB once decoded. Loaded as an <img>, it was decoded and sent to the graphics card inside the first
+ // frame that drew it, which was the first frame of the first switch into that world. Now it is decoded off the main
+ // thread (createImageBitmap) and sent to the card as soon as it has loaded, before any switch needs it. Both kinds of
+ // texture are kept unflipped (an ImageBitmap cannot be flipped on upload) and the shader flips v instead.
+ const BITMAP=typeof createImageBitmap==='function'&&typeof fetch==='function';
+ const skyTex=img=>{const tex=new THREE.Texture(img);tex.flipY=false;tex.colorSpace=THREE.SRGBColorSpace;tex.wrapS=THREE.RepeatWrapping;tex.generateMipmaps=false;tex.minFilter=THREE.LinearFilter;tex.anisotropy=4;tex.needsUpdate=true;return tex};
+ const loadSky=(w,tries=4,bitmap=BITMAP)=>new Promise(done=>{if(!w.sky_image)return done();
+  const ok=img=>{const tex=skyTex(img);wsky.tex[w.id]=tex;let up=false;try{renderer.initTexture(tex);up=true}catch(e){}
+    if(up&&bitmap&&img.close)try{img.close()}catch(e){}      // the card has its copy; free the decoded 33 MB in memory
+    try{if(!transition)skySet(styleId)}catch(e){}done()},
+   fail=()=>{if(tries>1)setTimeout(()=>loadSky(w,tries-1,bitmap).then(done),700);else if(bitmap)loadSky(w,2,false).then(done);else done()};
+  if(bitmap)new THREE.ImageBitmapLoader().load(w.sky_image,ok,undefined,fail);else new THREE.ImageLoader().load(w.sky_image,ok,undefined,fail)});
+ // the world in view first, the others one at a time once the splats are in (the local server refuses bursts)
+ (async()=>{await loadSky(styleOf(styleId));await splatsInP;for(const w of WORLDS)if(w.id!==styleId&&!wsky.tex[w.id])await loadSky(w)})().catch(e=>console.warn(e))}
+function skySet(id){const m=wsky.mesh;if(!m)return;const t=wsky.tex[id],u=m.material.uniforms;m.visible=!!t;if(t){u.a.value=t;u.b.value=t;u.k.value=0}}
+function skyBlend(from,to,p){const m=wsky.mesh;if(!m)return;const a=wsky.tex[from],b=wsky.tex[to],u=m.material.uniforms;m.visible=!!(a||b);if(!m.visible)return;
+ u.a.value=a||b;u.b.value=b||a;u.k.value=p*p*(3-2*p)}
 if(WORLDS){laneCur=worldLane(styleId);if(dome){dome.material.transparent=true;setSky(skyOf(styleId));}updateWorldCopies();}
 const readyText=()=>entry.label+(STYLES?' · '+styleOf(styleId).label:'')+' · '+((()=>{const m=STYLES?sets[styleId][0]:mesh;return m.packedSplats?.numSplats||m.extSplats?.numSplats||cfg.gaussians||0})()).toLocaleString()+' splats'+(LOOP?' × '+(WORLDS?sets[styleId].length:copies.length)+' copies, endless loop':'')+(plyOverride?' · '+plyOverride:'')+' · ready';
 const tailMeshes=[];
@@ -560,18 +651,23 @@ function revealModifier(d){                        // d: the set's direction uni
   return {gsplat:m.apply({gsplat,p:revealP,dir:d,up:revealUp,base:revealBase,span:revealSpan,cell:revealCell}).gsplat};});}
 let transition=null,busy=false;
 revealP.value=1;const setDir={};   // idle: p = 1 and direction +1 make the shader a no-op
-function attachReveal(id,set){setDir[id]=dyno.dynoFloat(1);for(const m of set){m.worldModifiers=BEND?[revealModifier(setDir[id]),bendModifier(id)]:[revealModifier(setDir[id])];m.updateGenerator();}}   // once per set, so a switch compiles nothing
+// The rainfall shader step is only put into the splats where the rainfall switch can run (?switch=rain, and scenes without
+// worlds). With the roll-in switch it was a no-op that still cost every splat about 40 operations each time the splats
+// were regenerated (every frame the view moves).
+const RAIN=!WORLDS||params.get('switch')==='rain';
+function attachReveal(id,set){setDir[id]=dyno.dynoFloat(1);if(!RAIN)return;for(const m of set){m.worldModifiers=BEND?[revealModifier(setDir[id]),bendModifier(id)]:[revealModifier(setDir[id])];m.updateGenerator();}}   // once per set, so a switch compiles nothing
 if(STYLES)attachReveal(styleId,sets[styleId]);
 function styleButtons(){for(const t of STYLES){const b=$('style-'+t.id);b.classList.toggle('active',t.id===styleId);b.disabled=busy;}}
 const synced=()=>spark.display&&spark.display.mappingVersion===spark.latestMappingVersion;
 async function chooseStyle(id,animated=true){
- if(!STYLES||busy||id===styleId)return;busy=true;switchTo=id;styleButtons();
+ if(!STYLES||busy||id===styleId)return;busy=true;switchTo=id;styleButtons();untrimRoom();
  const st=styleOf(id),from=styleId;
  try{
   if(!sets[id]){status.textContent='Loading '+st.label+'…';sets[id]=loading[id]?await loading[id]:await makeSet(styleUrl(st),false,id);}
   const go=animated&&!matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!go){for(const [k,set] of Object.entries(sets))for(const m of set)m.visible=k===id;scene.background.copy(baseBg);if(st.background)scene.background.set(st.background);styleId=id;if(WORLDS)setSky(skyOf(id));finishStyle();return;}
   if(!setDir[id])attachReveal(id,sets[id]);if(!setDir[from])attachReveal(from,sets[from]);
+  if(ROLL.on&&sets[from].W&&sets[id].W){startRoll(from,id,st);return}
   if(WORLDS){const a=sets[from].W,b=sets[id].W,lo=Math.min(a.lo,b.lo,0),hi=Math.max(a.hi,b.hi);revealBase.value=P0.dot(up)-eye*upm+lo*upm;revealSpan.value=Math.max(3,Math.min(10,hi-lo))*upm;}   // the sweep covers both worlds' heights
   setDir[from].value=-1;setDir[id].value=1;revealP.value=0;for(const m of [...sets[from],...sets[id]])m.updateVersion();
   streaks.style.display='block';status.textContent='Rainfall reveal…';let wait=true;const tw=performance.now();
@@ -582,16 +678,86 @@ async function chooseStyle(id,animated=true){
   wait=false;
   transition={from,to:id,start:performance.now(),duration:REVEAL_MS,bg0:scene.background.clone(),bg1:(st.background?new THREE.Color(st.background):baseBg.clone()),prepareMs:performance.now()-t0,deltas:[],previous:null};
  }catch(e){revealP.value=1;if(setDir[from])setDir[from].value=1;if(sets[id])for(const m of sets[id])m.visible=false;if(WORLDS)setSky(skyOf(from));finishStyle();status.textContent='Could not load style: '+e.message;}}
-function stepReveal(now){const t=transition,p=Math.min(1,Math.max(0,(now-t.start)/t.duration));
+// ---- World switch that rolls in from the distance (the default; ?switch=rain is the rainfall reveal above) ----
+// The rain reveal draws both worlds everywhere for the whole switch, and the new one arrives before its level of detail is
+// picked: the renderer made room for 8.4M splats in place of 1.2M and the frame rate halved for the second it took.
+// Here the new world takes the passage over one tile copy at a time, starting with the furthest (about 60 m ahead) and
+// coming towards the rider: a copy of the new world is put where the old one stands, fades in over it (after the same
+// short wait a copy gets when it moves ahead, so its detail is right), and the old copy then goes. One step every
+// ROLL.step ms, sooner while riding since the rider meets the change. Only a few copies are doubled at a time (9 or 10
+// drawn instead of 7, measured, where the rain drew 14: an old copy stays until the new one over it is fully in), nothing is added to the splat shader, and there is no
+// overlay. Props follow the copy they stand in; the sky, the light and the sound change with the whole, and the bike
+// changes as the change reaches it. ?rollms= sets the step.
+const ROLL={on:!!WORLDS&&params.get('switch')!=='rain',step:+params.get('rollms')||380,out:150};
+function startRoll(from,id,st){const A=sets[from],N=sets[id];updateWorldCopies();
+ for(const m of N){m.visible=false;m.opacity=1;fadingCopies.delete(m)}
+ for(const k0 of A.W.ks){const k=A.W.n+k0,m=A[((k%A.length)+A.length)%A.length];m.userData.rk=k;m.userData.goAt=0}
+ status.textContent='Changing world…';
+ transition={from,to:id,roll:true,start:performance.now(),B0:N.W.n+N.W.kFar,n:N.W.n,p:0,pn:0,bg0:scene.background.clone(),bg1:(st.background?new THREE.Color(st.background):baseBg.clone()),prepareMs:0,deltas:[],previous:null,most:0}}
+function rollEnd(t,now,A){for(const m of A){m.visible=false;m.opacity=1;fadingCopies.delete(m)}styleId=t.to;
+ scene.background.copy(t.bg1);if(WORLDS)setSky(skyOf(t.to));      // whole even if the roll was cut short
+ const s2=t.deltas.slice().sort((a,b)=>a-b);window.__lastReveal={durationMs:now-t.start,prepareMs:0,frames:t.deltas.length+1,medianFrameMs:s2[Math.floor(s2.length*.5)]||0,p95FrameMs:s2[Math.floor(s2.length*.95)]||0,roll:true,mostCopies:t.most};
+ finishStyle()}
+function stepRoll(now){const t=transition,A=sets[t.from],N=sets[t.to],ga=A.W,gn=N.W;
+ if(t.previous!==null)t.deltas.push(now-t.previous);t.previous=now;
+ // The rider was moved (Ride from the opening sends the bike back to the start line; so does going back to the opening).
+ // The roll's front is a tile index, so after a jump no copy would be in the right world and the passage had holes for
+ // up to 9 s. The new world takes the whole passage at once instead, under the overlay that covers the move.
+ if(Math.abs(gn.n-t.n)>3){for(const m of N){m.visible=true;m.opacity=1;fadingCopies.delete(m)}t.p=t.pn=1;skyBlend(t.from,t.to,1);
+  if(rider)try{rider.blend(t.from,t.to,1)}catch(e){console.error(e);rider=null}
+  if(props)try{props.blend(t.from,t.to,1,true)}catch(e){console.error(e);props=null}
+  return rollEnd(t,now,A)}
+ t.n=gn.n;
+ const B=t.B0-(now-t.start)/ROLL.step,kB=Math.ceil(B),near=gn.n+Math.min(...gn.ks),late=now-t.start>9000;let old=0,shown=0;
+ // the new world: every copy from kB on
+ for(const k0 of gn.ks){const k=gn.n+k0,m=N[((k%N.length)+N.length)%N.length],want=k>=kB||late;
+  if(want&&!m.visible){m.visible=true;m.opacity=0;m.userData.movedAt=now;m.userData.waitPick=true;m.userData.fadeAt=0;fadingCopies.add(m)}
+  else if(!want&&m.visible){m.visible=false;m.opacity=1;fadingCopies.delete(m)}
+  if(m.visible)shown++}
+ // the old world: copies nearer than kB stay. One the new world has just taken over stays until the new copy has faded in
+ // over it, then fades out quickly; one that has moved ahead into the new world's stretch is simply not shown.
+ for(const k0 of ga.ks){const k=ga.n+k0,m=A[((k%A.length)+A.length)%A.length],d=m.userData;
+  // nearer than the front: the old world, including a copy the roll had already hidden that came back round behind a
+  // rider who backed up across a copy boundary (it was skipped before, and the place behind the bike stayed empty)
+  if(k<kB&&!late){if(!m.visible){m.visible=true;m.opacity=1;fadingCopies.delete(m)}d.rk=k;d.goAt=0;old++;shown++;continue}
+  if(!m.visible)continue;
+  if(d.rk!==k||late){m.visible=false;m.opacity=1;fadingCopies.delete(m);continue}
+  // it goes once the new copy over it is fully in (that can now take longer than the fixed wait: see PICK_WAIT)
+  if(!d.goAt){const mn=N[((k%N.length)+N.length)%N.length];if(mn.visible&&!fadingCopies.has(mn))d.goAt=now;else{old++;shown++;continue}}
+  const q=(now-d.goAt)/ROLL.out;if(q>=1){m.visible=false;m.opacity=1}else{if(q>0)m.opacity=1-q;old++}
+  shown++}
+ if(shown>t.most)t.most=shown;
+ // how far the change has come (0 at the far end, 1 at the rider), and the last part of that for what sits with the rider
+ // That measure moves a whole copy (a sixth) in one frame each time the rider crosses into the next copy, so the sky, the
+ // light, the bike and the sound follow it at no more than 1.5 a second; the switch ends only once they have arrived.
+ const tgt=Math.max(0,Math.min(1,1-(B-near)/(gn.kFar+1))),dms=t.deltas.length?t.deltas[t.deltas.length-1]:0,lim=1.5*dms/1000;
+ const p=t.p=Math.max(0,Math.min(1,t.p+Math.max(-lim,Math.min(lim,tgt-t.p)))),pn=t.pn=Math.max(0,Math.min(1,(p-.72)/.28));
+ scene.background.copy(t.bg0).lerp(t.bg1,p*p*(3-2*p));skyBlend(t.from,t.to,p);      // the same easing as the sky band, whose top and bottom rows are the background colour
+ if(rider)try{rider.blend(t.from,t.to,pn*pn*(3-2*pn))}catch(e){console.error(e);rider=null}
+ if(props)try{props.blend(t.from,t.to,p,true)}catch(e){console.error(e);props=null}
+ if(WORLDS){const a0=skyOf(t.from),a1=skyOf(t.to);setSky(a0+(a1-a0)*p)}
+ if((kB<=near&&!old&&p>.999)||late)rollEnd(t,now,A)}
+function stepReveal(now){if(transition.roll)return stepRoll(now);const t=transition,p=Math.min(1,Math.max(0,(now-t.start)/t.duration));
  if(t.previous!==null)t.deltas.push(now-t.previous);t.previous=now;
  revealP.value=p;for(const m of [...sets[t.from],...sets[t.to]])m.updateVersion();if(rider)try{rider.blend(t.from,t.to,p)}catch(e){console.error(e);rider=null}if(props)try{props.blend(t.from,t.to,p)}catch(e){console.error(e);props=null}
 
- scene.background.copy(t.bg0).lerp(t.bg1,Math.min(1,p*1.4));drawStreaks(p);
+ scene.background.copy(t.bg0).lerp(t.bg1,Math.min(1,p*1.4));drawStreaks(p);skyBlend(t.from,t.to,p);
  if(WORLDS){const a0=skyOf(t.from),a1=skyOf(t.to);setSky(a0+(a1-a0)*(a1<a0?Math.min(1,p*2.5):Math.min(1,Math.max(0,(p-.1)/.45))));}   // sky out early into a tunnel; in over p 0.1-0.55 out of one, as the high splats land
  if(p===1){for(const m of sets[t.from])m.visible=false;setDir[t.from].value=1;styleId=t.to;
   const s2=t.deltas.slice().sort((a,b)=>a-b);window.__lastReveal={durationMs:now-t.start,prepareMs:t.prepareMs,frames:t.deltas.length+1,medianFrameMs:s2[Math.floor(s2.length*.5)]||0,p95FrameMs:s2[Math.floor(s2.length*.95)]||0};
   finishStyle();}}
-function finishStyle(){transition=null;switchTo=null;streaks.style.display='none';busy=false;styleButtons();status.textContent=readyText();
+// After a world switch the renderer keeps room for everything the switch drew, for good (about 8M splats after the first
+// switch), and every new draw order is then uploaded at that size: 34 MB a time, not 4. A moment after a switch has
+// finished, the renderer's sets are told they hold one and a half times what is drawn now. Their real room is kept and
+// handed back when the next switch starts (untrimRoom), so the renderer never has to throw its big textures away and make
+// them again; only the uploads shrink. ?trim=0 leaves the room as it is.
+const roomSets=()=>new Set([spark.display,spark.current,...(Array.isArray(spark.accumulators)?spark.accumulators:[])]);
+function trimRoom(){try{if(transition||busy||!spark.current||!(spark.current.numSplats>0))return;
+ const need=Math.ceil(spark.current.numSplats*1.5/16384)*16384;let cut=false;
+ for(const acc of roomSets())if(acc&&acc.target&&typeof acc.maxSplats==='number'&&acc.maxSplats>need){acc.__room={n:acc.maxSplats,target:acc.target};acc.maxSplats=need;cut=true}
+ if(cut&&typeof spark.maxSplats==='number')spark.maxSplats=0;window.__trim={need,cut,at:Math.round(performance.now())}}catch(e){console.warn(e)}}
+function untrimRoom(){try{for(const acc of roomSets())if(acc&&acc.__room){if(acc.target===acc.__room.target&&acc.__room.n>acc.maxSplats)acc.maxSplats=acc.__room.n;acc.__room=null}}catch(e){console.warn(e)}}
+function finishStyle(){transition=null;switchTo=null;skySet(styleId);streaks.style.display='none';busy=false;styleButtons();status.textContent=readyText();if(WORLDS&&LOD&&params.get('trim')!=='0')setTimeout(trimRoom,1500);
  const q=new URLSearchParams(location.search);if(styleId===(WORLDS&&STYLES.some(t=>t.id===cfg.default_world)?cfg.default_world:STYLES[0].id))q.delete('style');else q.set('style',styleId);history.replaceState(null,'','?'+q.toString());}
 const loading={};
 if(STYLES){const box=$('styles');box.style.display='';box.innerHTML='<b style="margin-right:6px">Look:</b>';
@@ -615,7 +781,8 @@ if(cfg.loop){const b=$('loop');b.style.display='';b.textContent='Endless loop: '
  if(LOOP)$('freehelp').innerHTML='<b>Free fly</b> goes anywhere inside the passage, forever: the passage repeats every '+(TL/upm).toFixed(0)+' m. <b>Endless loop: off</b> shows the clip as filmed, with free fly unlimited.';}
 $('play').onclick=()=>{setMode('ride');x=0;h=eye;yaw=0;pitch=0;playing=performance.now();};
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
-let previous=performance.now(),fpsN=0,fpsT=performance.now();
+let previous=performance.now(),fpsN=0,fpsT=performance.now(),fpsStep=false;
+const RM=matchMedia('(prefers-reduced-motion: reduce)');      // one live query, not a new one every frame
 function offPath(){let best=Infinity;for(const p of path)best=Math.min(best,p.distanceTo(camera.position));return best/upm;}
 
 // ---- Bike physics for the worlds game (arcade model; the road is an endless straight lane) ----
@@ -637,6 +804,7 @@ const RIDE={vmax:TOP,grip:7.5,power:150,brake:12,engine:4.5,drag:.004,reverse:2.
 const bike={v:0,vx:0,vxSeen:0,kappa:0,lean:0,throttle:0,braking:false,a:0,pitch:0,pitchV:0,t:0,steerVis:0,z:0,zV:0,
  gear:1,rpm:0,shiftT:0,scrub:0,gripT:0,imp:0,kick:0,flash:0,flashSide:0,crashT:0,crashSide:0,crashes:0,hits:0,lastHit:0};
 const WHEELBASE=1.26,_rp=new THREE.Vector3();
+const LODFOV=LOD&&params.get('lodfov')!=='0'?1/camera.projectionMatrix.elements[5]:0;      // see the view's widening with speed, in ridePhysics
 // riding over a rock: kicks to the suspension (m/s) and pitch (deg/s) springs, the tip (rad) and the share of speed lost
 const ROCK={lift:.85,pitch:45,roll:.012,loss:.025};
 // Ground height (m, about the tile's median) of world `id` at `ahead` metres in front of the rider, from that world's road profile.
@@ -653,7 +821,7 @@ function laneLimit(side,cap){const cur=sets[styleId]&&sets[styleId].W;if(!cur||!
  // the upper median of the looks: with two it is the larger (as before), with five the third
  votes.sort((a,b)=>a-b);const best=votes.length?votes[votes.length>>1]:0;
  return Math.min(cap,best||cap)}
-function roadNow(ahead){const a=roadAt(styleId,ahead);return transition?a+(roadAt(transition.to,ahead)-a)*revealP.value:a}
+function roadNow(ahead){const a=roadAt(styleId,ahead);return transition?a+(roadAt(transition.to,ahead)-a)*(transition.roll?transition.pn:revealP.value):a}
 const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
 // Detail ahead of the rider. The renderer picks its detail for a viewpoint and its answer arrives about 0.25 s late, so the
 // viewpoint it is given is moved ahead of the rider by that much travel: LEAD.base metres plus LEAD.perV seconds of riding.
@@ -732,7 +900,7 @@ if(TRACK&&params.get('map')!=='0'){
 const PXC={on:params.get('physx')!=='0',slope:+params.get('pxslope')||.2,pad:+params.get('pxpad')||0,near:.9,far:+params.get('pxfar')||1.8,ahead:.42,radius:.42,friction:params.get('pxfric')!==null?+params.get('pxfric'):.05};
 let PX=null,pxKey='';
 if(WORLDS&&PXC.on)splatsInP.then(async()=>{for(let attempt=0;attempt<3;attempt++){
- try{const mod=await import('./fantasy-physx.js?v=1794758073'+(attempt?'&try='+attempt:''));PX=await mod.createPhysics({url:'./vendor/physx/'+(params.get('physx')==='missing'?'not-there.mjs':'physx-js-webidl.mjs')+(attempt?'?try='+attempt:''),friction:PXC.friction});window.__px=PX;console.log('physics: PhysX',(PX.version>>>24)+'.'+((PX.version>>>16)&255)+'.'+((PX.version>>>8)&255));return}
+ try{const mod=await import('./fantasy-physx.js?v=1794980868'+(attempt?'&try='+attempt:''));PX=await mod.createPhysics({url:'./vendor/physx/'+(params.get('physx')==='missing'?'not-there.mjs':'physx-js-webidl.mjs')+(attempt?'?try='+attempt:''),friction:PXC.friction});window.__px=PX;console.log('physics: PhysX',(PX.version>>>24)+'.'+((PX.version>>>16)&255)+'.'+((PX.version>>>8)&255));return}
  catch(e){console.warn('physics engine not loaded, attempt '+(attempt+1),e);await new Promise(r=>setTimeout(r,800*(attempt+1)))}}
  console.warn('physics engine unavailable: riding on the built-in model')});
 // Builds the walls for the world being ridden when they are missing or out of date; true when the engine is ready to step.
@@ -874,7 +1042,12 @@ function ridePhysics(dt){
  rideRoll=REDUCED?0:-(b.lean+curveLean)*.55+b.kick;
  h=eye+b.z;
  // the faster the bike, the wider the view (up to RIDE.fov degrees more at 100 km/h)
- const fov=vfov+(REDUCED?0:RIDE.fov*fast*fast);if(Math.abs(fov-camera.fov)>.03){camera.fov=fov;camera.updateProjectionMatrix()}
+ // The renderer picks its detail afresh whenever the size of a pixel in the view changes, and a view that widens with
+ // speed changes it on every frame of speeding up or slowing down: picks then ran back to back (6 a second measured, each
+ // one a search of every tile, seven uploads and a new draw order) in place of the one every 600 ms set above. So the
+ // renderer's own detail scale is turned the other way by the same amount, and what it sees stays constant: detail is
+ // picked for the view at rest. ?lodfov=0 turns this off.
+ const fov=vfov+(REDUCED?0:RIDE.fov*fast*fast);if(Math.abs(fov-camera.fov)>.03){camera.fov=fov;camera.updateProjectionMatrix();if(LODFOV)spark.lodRenderScale=LODFOV*camera.projectionMatrix.elements[5]}
  // the bars follow the lean; at a standstill, where the bike cannot lean, they turn with the keys instead
  b.steerVis=b.lean/RIDE.lean+steer*(1-moving)*.7+curveLean*1.2;
 }
@@ -882,7 +1055,7 @@ window.__bike=bike;
 function tick(now,dtForce,noDraw){const dt=dtForce??Math.max(0,Math.min(.05,(now-previous)/1000));previous=now;
  if(transition)stepReveal(now);
  soundFrame(dt);try{mapFrame()}catch(e){console.error(e)}      // the map never stops the frame loop
- if(rider)try{if(!transition)rider.setWorld(styleId);rider.update(dt,bike.steerVis,{speed:mode==='ride'?bike.v:0,reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches})}catch(e){console.error(e);rider=null}
+ if(rider)try{if(!transition)rider.setWorld(styleId);rider.update(dt,bike.steerVis,{speed:mode==='ride'?bike.v:0,reducedMotion:RM.matches})}catch(e){console.error(e);rider=null}
  if(props)try{if(!transition)props.setWorld(styleId);props.update(_pc.copy(ridePos).sub(P0).dot(Tu),{base:revealBase.value,span:revealSpan.value},now)}catch(e){console.error(e);props=null}
    // a style switch in progress: both looks are drawn, movement continues
  if(WORLDS){const a=worldLane(styleId),b=switchTo?worldLane(switchTo):a,k=1-Math.exp(-dt*8);   // ease the lane into the target world's (the narrower during a switch)
@@ -891,7 +1064,11 @@ function tick(now,dtForce,noDraw){const dt=dtForce??Math.max(0,Math.min(.05,(now
   if(mode==='ride'&&playing===null){ridePhysics(dt);applyRide();
    if(LOD){if(LEAD.on){if(!LEAD.everyMs||now-leadAt>=LEAD.everyMs||!spark.lodPosOverride||(copyMoved&&LEAD.onMove&&copySpeed>12&&now-leadAt>=300)){leadAt=now;copyMoved=false;if(window.__lodBase&&LEAD.light)spark.lodSplatCount=Math.round(window.__lodBase*(1-LEAD.light*Math.min(1,Math.abs(bike.v)/27.8)));const ld=Math.max(.3,Math.min(8,LEAD.base+Math.abs(bike.v)*(LEAD.perV+LEAD.everyMs/4000)-Math.max(0,pitch)*.08));spark.lodPosOverride=_lodPos.copy(ridePos).addScaledVector(Tu,ld*upm*(bike.v<-.2?-1:1))}
      spark.lodQuatOverride=LEAD.everyMs?_lodQuat:null}else{spark.lodPosOverride=null;spark.lodQuatOverride=null}}};}
- fpsN++;if(now-fpsT>1000){window.__fps=Math.round(fpsN*1000/(now-fpsT));resFrame(window.__fps,now-fpsT);fpsN=0;fpsT=now;}
+ // ticks forced by __step are not frames on screen: a second that holds any is not judged (it would read hundreds of frames
+ // a second and raise the display rate the quality levels aim for)
+ if(dtForce===undefined)fpsN++;else fpsStep=true;
+ if(now-fpsT>1000){if(fpsStep)resFrame(0,1e9);else{window.__fps=Math.round(fpsN*1000/(now-fpsT));resFrame(window.__fps,now-fpsT)}fpsN=0;fpsT=now;fpsStep=false;
+  if(sortKeys&&SORT_MS<0)spark.minSortIntervalMs=sortKeys.state.on&&!sortKeys.state.pause?Math.max(30,Math.round((spark.maxSplats||0)/35000)):0;}
  if(playing!==null){s=(now-playing)/1000*24/ (cfg.frame_stride||3);if(LOOP)s=wrapS(s);else if(s>=N-1){s=N-1;playing=null;}applyRide();}
  else if(keys.size&&mode==='ride'&&!WORLDS){const v=3*dt;                            // metres per second across / up; forward at about the filmed speed x4
   if(keys.has('w'))s=Math.min(sMax,s+dt*8*24/(cfg.frame_stride||3)/2);if(keys.has('s'))s=Math.max(sMin,s-dt*8*24/(cfg.frame_stride||3)/2);if(LOOP)s=wrapS(s);
@@ -908,9 +1085,55 @@ function tick(now,dtForce,noDraw){const dt=dtForce??Math.max(0,Math.min(.05,(now
    camera.position.addScaledVector(RIGHT,(cs-side)*upm).addScaledVector(up,(ch-hgt)*upm);}}
  updateTail();updateLoopCopies();updateWorldCopies();
  $('hud').textContent=mode==='ride'&&LOOP?`endless loop · ${((LU?((s%W)+W)%W:s)*step/upm).toFixed(1)} of ${(TL/upm).toFixed(0)} m into this stretch · across ${x>=0?'+':''}${x.toFixed(1)} m (limit −${laneAt(C.lane_left_m,s).toFixed(1)} / +${laneAt(C.lane_right_m,s).toFixed(1)}) · height ${h.toFixed(1)} m`:mode==='free'&&LOOP?'free fly · endless loop':mode==='ride'?`along ${(Math.min(s,N-1)*step/upm+(s>N-1?(s-N+1)*step/upm:0)).toFixed(1)} of ${TAIL?'∞':(cfg.path_length/upm+endM).toFixed(0)} m${TAIL&&s>N-1?' (endless road)':''} · across ${x>=0?'+':''}${x.toFixed(1)} m (limit −${laneAt(C.lane_left_m,s).toFixed(1)} / +${laneAt(C.lane_right_m,s).toFixed(1)}) · height ${h.toFixed(1)} m`:'free fly';
- const away=offPath(),w=$('warn');if(mode==='free'&&!BOUND&&away>C.half_width_m+.5){w.style.display='block';w.textContent='You are '+away.toFixed(1)+' m from the filmed path, outside the validated corridor (±'+C.half_width_m+' m); expect holes and smears.';}else w.style.display='none';
- if(!noDraw)renderAll();}
-renderer.setAnimationLoop(now=>tick(now));
+ const away=mode==='free'&&!BOUND?offPath():0,w=$('warn');if(mode==='free'&&!BOUND&&away>C.half_width_m+.5){w.style.display='block';w.textContent='You are '+away.toFixed(1)+' m from the filmed path, outside the validated corridor (±'+C.half_width_m+' m); expect holes and smears.';}else w.style.display='none';
+ if(!noDraw&&(dtForce!==undefined||!idleSkip()))renderAll();}
+// Standing still. With the bike stopped the picture does not change, yet it was drawn 60 times a second, and stopped is the
+// dearest view there is (the nearest ground and walls at full detail: 44 ms of graphics card time measured against 24
+// riding). So while the view is exactly where it was at the last draw and nothing else is in motion (no world switch, no
+// tile copy fading in, no key or drag, not the opening), only every third frame is drawn: the card does a third of the
+// work, and what still moves on its own (a flag, a windmill) moves at 20 frames a second. Anything that moves the view
+// brings every frame back at once. ?idle=0 turns this off.
+// The canvas's size is part of what is compared: resizing it clears the picture, and a skipped frame would then show black.
+const IDLE={on:!!WORLDS&&params.get('idle')!=='0',every:Math.max(1,+params.get('idleevery')||3),n:0,m:new Float64Array(19),skipped:0};
+function idleSkip(){if(!IDLE.on||transition||opening||busy||fadingCopies.size||keys.size||drag||playing!==null||mode!=='ride'){IDLE.n=0;IDLE.m[16]=-1;return false}
+ const e=camera.matrixWorld.elements,m=IDLE.m,cv=renderer.domElement;let same=Math.abs(m[16]-camera.fov)<1e-6&&m[17]===cv.width&&m[18]===cv.height;for(let i=0;same&&i<16;i++)if(Math.abs(e[i]-m[i])>1e-7)same=false;
+ if(!same){for(let i=0;i<16;i++)m[i]=e[i];m[16]=camera.fov;m[17]=cv.width;m[18]=cv.height;IDLE.n=0;return false}
+ if(++IDLE.n%IDLE.every===0)return false;IDLE.skipped++;return true}
+window.__idle=IDLE;
+// Frame pacing. Chrome lets a page queue three to four frames for the graphics card (measured while the card was the limit:
+// a frame's work finished 133 ms after it was sent). Everything that has to talk to the card in step with it then waits for
+// that whole queue: each upload of a new draw order took 40 to 150 ms, and frames came in bursts with gaps of 100 to 290 ms.
+// So a new frame is only started once the card has finished the last one. A fence follows each frame; it is looked at on
+// every display refresh and, while the card is busy, every few milliseconds in between, so the next frame starts the moment
+// the card is free. Nothing piles up, frames come at the card's own even pace, and the ride answers the keys about three
+// frames sooner. No frame waits longer than PACE.max ms; if nine in ten do (a browser whose fences do not report),
+// pacing turns itself off for good.
+// It is only used where it was measured to help: when the quality level is already the lowest and the frame rate is still
+// under 48 (the level logic above switches it on, and off again once paced frames reach 38 a second). On a card that keeps up it
+// only added jitter: at 60 frames a second, 92% of frames were on the beat with it against 99% without.
+// It is not remembered between visits: every visit starts unpaced and earns it again.
+// Measured on the same 20 s full-throttle ride (M3 in Low Power Mode, 1440 x 820, 2026-11-17), old against this with the
+// sort distances on a worker: frames 55 ms or longer 11% -> 3%, longest 258 -> 76 ms, frames under 12 ms after the last
+// (the bursts) 20% -> 0; 37 -> 29 frames a second, because the card no longer has frames queued behind the one it is on.
+// Keeping one frame queued (?pacedepth=2) got the count back but the frames came in pairs (26% under 12 ms, 25% over 55).
+// It is off unless asked for (?pace=auto for the rule above, ?pace=1 always, ?pace=beat always and only on a display
+// refresh). With Low Power Mode off and the same ride at the top level, pacing showed 34 to 40 frames a second where the
+// unpaced game showed 45, with no fewer long frames (26 of 900 against 26 to 35 of 700 to 800): once the blocking reads
+// were gone and the uploads were small, the queue it guards against no longer cost enough to be worth a quarter of the
+// frame rate.
+const PACE={on:!!WORLDS&&(params.get('pace')==='1'||params.get('pace')==='beat'),auto:!!WORLDS&&params.get('pace')==='auto',broken:false,beat:params.get('pace')==='beat',depth:Math.max(1,Math.min(3,+params.get('pacedepth')||1)),max:+params.get('pacemax')||70,q:[],timer:0,waited:0,late:0,frames:0},paceGl=renderer.getContext();
+function paceFree(){if(!PACE.on)return true;const q=PACE.q;
+ try{while(q.length&&paceGl.clientWaitSync(q[0].s,0,0)!==paceGl.TIMEOUT_EXPIRED)paceGl.deleteSync(q.shift().s)}catch(e){PACE.on=false;return true}
+ if(q.length<PACE.depth)return true;if(performance.now()-q[0].t<PACE.max)return false;
+ PACE.late++;paceGl.deleteSync(q.shift().s);return true}
+function paceFrame(now){tick(now);PACE.frames++;
+ if(PACE.on&&PACE.frames%120===0){if(PACE.late>108){PACE.on=false;PACE.broken=true;console.warn('frame pacing off: frames were not reported finished in time')}PACE.late=0}
+ if(PACE.on&&typeof paceGl.fenceSync==='function')try{const f=paceGl.fenceSync(paceGl.SYNC_GPU_COMMANDS_COMPLETE,0);if(f){PACE.q.push({s:f,t:performance.now()});paceGl.flush()}}catch(e){PACE.on=false}}
+function pacePoll(){PACE.timer=0;if(document.hidden)return;if(paceFree())paceFrame(performance.now());else PACE.timer=setTimeout(pacePoll,3)}
+// Unpaced (the default), a frame's time is the display refresh it is for, so each step is exactly one refresh even when
+// the callback starts a little late; paced frames can come from a timer, so they all use the clock instead.
+renderer.setAnimationLoop(t=>{if(PACE.timer)return;if(paceFree())paceFrame(PACE.on||!(t>0)?performance.now():t);else{PACE.waited++;if(!PACE.beat)PACE.timer=setTimeout(pacePoll,3)}});
+window.__pace=PACE;
 // Test hooks: __step(n, dt) runs n frames of fixed length (drawing the last); __bench(n) returns the milliseconds one finished frame takes at the current pose.
 window.__step=(n=1,dt=1/60)=>{for(let i=0;i<n;i++)tick(performance.now(),dt,i<n-1)};      // draws only the last frame: hundreds of undisplayed draws in a row can reset the graphics context
 window.__bench=(n=20)=>{const gl=renderer.getContext(),px=new Uint8Array(4),one=()=>{renderAll();gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px)};one();one();const t=performance.now();for(let i=0;i<n;i++)one();return (performance.now()-t)/n};

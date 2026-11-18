@@ -9,14 +9,14 @@ Status on 2026-11-15: working prototype. It runs from a local folder with `pytho
 ## 1. What you see in the demo
 
 1. A short **loading screen** with the passage's picture.
-2. **Opening** ("Dune Rush"): the title over the live track. The view glides toward the finish gate with no bike drawn, and the world changes every nine seconds with the rain sweep (root passage, glowing night, frozen, neon, painted), each with its own accent colour, name and line, and its music and ambience once the page has had a click or key. Five picture cards or the arrow keys pick a world; **Ride** (or Enter) puts you on the start line in the world showing. The bike waits until you hold W. The home button in the ride comes back here. **Lap times** sit under the track map: the running lap, the last lap and the best on record (kept in the browser), with a banner at the line.
+2. **Opening** ("Dune Rush"): the title over the live track. The view glides toward the finish gate with no bike drawn, and the world changes every nine seconds, rolling in from the far end (root passage, glowing night, frozen, neon, painted), each with its own accent colour, name and line, and its music and ambience once the page has had a click or key. Five picture cards or the arrow keys pick a world; **Ride** (or Enter) puts you on the start line in the world showing. The bike waits until you hold W. The home button in the ride comes back here. **Lap times** sit under the track map: the running lap, the last lap and the best on record (kept in the browser), with a banner at the line.
 3. **Five worlds**, picked from picture cards at the top left, all looks of the same passage:
    - Root passage (day)
    - Glowing night
    - Frozen passage
    - Neon passage
    - Painted passage
-4. **Switching** happens while you ride: the new world "rains in" from the top down, and the bike's skin changes with the same rain pattern.
+4. **Switching** happens while you ride: the new world rolls in from the far end of the passage one tile at a time, and the bike's skin changes as the change reaches you.
 5. **Rider's-eye view**: handlebars, tank and the mascot's orange arms with paws on the grips.
 6. **Riding**: a five-gear bike that reaches 100 km/h, with brakes and lean steering. Turns have to be braked for: too fast and the bike runs wide and slides; into the stones and it is knocked aside and slowed.
 7. **Sound**: music, ambience, engine and tyres, different in each world. A speaker button turns it on and off.
@@ -59,12 +59,12 @@ Renderer: three.js (r180) with the Spark splat renderer, in a single HTML page.
 
 ---
 
-## 3. The world switch ("rainfall reveal")
+## 3. The world switch (roll-in)
 
-- A small shader runs on every splat. It reads one number, the switch progress from 0 to 1.
-- Each splat gets its own start time from three things: how high it is (high first), which 15 cm column it stands in (random per column), and a little random jitter.
-- The outgoing world fades out with that timing while the incoming one fades in, with a brief cyan flash on arriving splats.
-- Both worlds are drawn during the switch, and you keep riding. The default switch takes 1 second.
+- The new world takes the passage one tile copy at a time, starting with the furthest (about 60 m ahead) and coming towards the rider, one step every 0.38 s.
+- Each new copy stays invisible until the renderer has picked its detail, fades in over the old copy, and the old copy then goes. At most a few copies are doubled at any moment, so the frame rate holds during a switch.
+- The sky, background colour, light and sound ease from one world to the other as the change comes nearer; the bike changes as it reaches the rider. You keep riding. It takes about 2 seconds riding and 3 standing.
+- The earlier switch, a "rainfall reveal" in which a shader faded every splat of both worlds by height and column over one second, is still there with `?switch=rain`. It drew both worlds whole and halved the frame rate for that second.
 
 ---
 
@@ -85,7 +85,7 @@ Measured on an Apple M3 MacBook (1440 x 900 window), by timing finished frames a
 - So the game uses the renderer's **level of detail**: each tile is loaded with a detail tree (built at load, 1 to 2 seconds per world), and the renderer draws at most 1.0 million splats, coarser far away. Side by side at four spots, a 1.2 million budget looked nearly the same as drawing everything.
 - **Lighter tiles.** A fifth of the day tile's splats were almost fully transparent (opacity under 5%), and both tiles carried splats more than 6.5 m to the side or 6.6 m up, outside what the rider sees. Dropping those took the day tile from 605,277 to 463,444 splats and the night tile from 634,062 to 584,107, with no visible difference in seven side-by-side frames (`?light=0` rides on the originals).
 - **Fewer splats at speed.** The splat budget falls with speed, to 65% at 100 km/h, where detail cannot be seen anyway.
-- Quality levels run from sharpest (1.2M splats at 1.5x resolution) to fastest (0.85M at 1x; lower looked like mush). The game starts at 1.0M at 1x, steps to a faster level when the frame rate stays under 48 for two seconds, tries a sharper one only at 57 or more, and remembers the level in the browser.
+- Quality levels are set for frame rate first: 1.0M splats at 1.25x resolution, 1.0M at 1x, and 0.85M at 1x (lower looked like mush). The game steps to a faster level when the frame rate stays under 92% of the display's rate (55 on a 60 Hz screen), tries a sharper one only at 95%, and remembers the level in the browser. `?sharp=1` brings back the older, sharper levels (up to 1.2M at 1.5x).
 - **Picture punch, at no drawing cost.** Each world's saturation and contrast are raised on every splat's own colour inside the splat shader (no extra pass), and the blur added to each splat before drawing is 0.18 instead of 0.30, which makes edges measurably crisper (16% stronger at 0.12) for a little more grain. A small readout at the bottom left shows the frame rate, the budget and the resolution in use.
 - The budget is focused on the view: full detail inside a 70 degree cone, much less to the sides and behind.
 - **Detail keeps up with the rider.** In the renderer's default mode, picking which detail to show took 0.8 to 1.5 seconds, so while riding the view showed detail chosen 10 m back and only sharpened when the bike stopped. In its incremental mode a pick takes about 0.25 seconds, and the viewpoint it works from is moved ahead of the rider by that much travel. Picks are limited to one every 0.6 seconds, because running them back to back cost frame rate. Moving frames went from about a third of the sharpness of stopped frames to between a half and three quarters, depending on the pick rate.
@@ -113,7 +113,7 @@ These timings were taken in the Claude app's built-in browser. They show what is
 - The bars, fork and wheel turn with the lean, up to 14 degrees about the steering axis.
 - The front wheel rolls at the riding speed.
 - The bike is drawn in its own pass on top of the splats, with lights that change per world.
-- On a switch, the skin sweeps across the bike with the same rain timing as the scenery, and the night skin's cyan runes glow. Between worlds with different vehicles, one dissolves out and the other in with that same sweep.
+- On a switch, the skin sweeps across the bike as the change reaches the rider, and the night skin's cyan runes glow. Between worlds with different vehicles, one dissolves out and the other in with that same sweep.
 - Each newer vehicle is scaled so its grips sit where the woodland bike's do, which is where the rider's arms reach. The snowmobile has no front wheel. Its windshield is not drawn: it sat on the vanishing point and hid the way ahead in a tall window, so the body is cut off level just below it. On narrow handlebars (the vintage bike) the rider's elbows point outwards, so the arms leave by the bottom corners instead of rising through the middle of the view.
 
 **The mascot's arms.** Only the arms of the rigged mascot are drawn. The forearm and paw sit on the grip exactly as the model was posed and turn with the bar; the upper arm runs down out of view.

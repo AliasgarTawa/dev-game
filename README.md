@@ -21,7 +21,7 @@ The whole game is made from **one 12-metre stretch of road**.
 That stretch is a splat tile of about half a million points. The game repeats it and bends it into a 1.4 km circuit. A loop that short should get boring in seconds. It doesn't, because the view keeps changing:
 
 1. **One shape, five looks.** The original passage, mossy roots by day, was restyled four more times: the same roots glowing at night, frozen, neon, and painted countryside. Every look keeps the exact shape of the first one.
-2. **So worlds can swap in place.** Because the shapes match, the game can replace one world with another while you are moving. The new world rains in from the top, splat by splat, and the old one fades out. It takes one second. The bike under you, the music and the roadside props change with it.
+2. **So worlds can swap in place.** Because the shapes match, the game can replace one world with another while you are moving. The new world rolls in from the far end of the passage, one tile at a time, until it reaches you. It takes about two seconds while riding. The bike under you, the music and the roadside props change with it.
 3. **The ride never stops.** The track, the stones you can hit, the physics and your lap time stay exactly the same through a switch. Only what you see and hear changes.
 
 That is the trick: a tiny piece of world feels like a long journey, because you are never looking at the same thing for long. And a new world is cheap to add. It is a new look of the same road, not a new scene.
@@ -55,7 +55,7 @@ That is the trick: a tiny piece of world feels like a long journey, because you 
 | Painted passage | 575,475 | 7 |
 
 - **2,800,473** splats across the five tiles. All five stay loaded, so once they are in, a switch never waits.
-- Up to **1.2 million** splats drawn per frame. The game picks the detail level to hold the frame rate.
+- Up to **1.0 million** splats drawn per frame. The game picks the detail level to hold the frame rate.
 - Tile length **11.9 m**, lap length **1,396 m**.
 
 The counts come from the tile files' own headers and from [`fantasy-worlds.json`](fantasy-worlds.json).

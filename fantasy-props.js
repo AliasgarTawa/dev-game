@@ -104,7 +104,9 @@ export function createProps(scene, o) {
   const uni = {uP: {value: 1}, uUp: {value: U.clone()}, uBase: {value: 0}, uSpan: {value: 4 * upm}, uCell: {value: 0.15 * upm}, uTime: {value: 0}};
   const NOWAVE = {uWave: new THREE.Vector4(0, 1, 0, 0), uWave2: new THREE.Vector4(1, 0, 0, 0)};
   const W = {};                                                    // per world: {group, insts, uDir, uGlow, loaded}
-  for (const id of worlds) { const g = new THREE.Group(); g.visible = false; scene.add(g); W[id] = {group: g, insts: [], uDir: {value: 1}, uGlow: {value: new THREE.Vector2(...(LIGHT[id] || LIGHT.day).glow)}, loaded: false, failed: 0}; }
+  // a world's group is in the scene only while it is drawn (apply): three.js and the splat renderer walk every node in
+  // the scene each frame, hidden or not, and four of the five worlds are hidden at any time
+  for (const id of worlds) { const g = new THREE.Group(); g.visible = false; W[id] = {group: g, insts: [], uDir: {value: 1}, uGlow: {value: new THREE.Vector2(...(LIGHT[id] || LIGHT.day).glow)}, loaded: false, failed: 0}; }
   const state = {from: worlds[0], to: worlds[0], p: 1, loaded: [], drawn: 0, rockHits: 0, error: null, W};
 
   // The scenery's rain sweep (fantasy.html revealModifier), on a solid surface: the same start time by height and by ground
@@ -236,15 +238,22 @@ export function createProps(scene, o) {
   // which worlds are drawn, and the light, from (from, to, p)
   const cA = new THREE.Color(), cB = new THREE.Color();
   function apply() {
-    const {from, to, p} = state, moving = from !== to && p < 1, k = moving ? p * p * (3 - 2 * p) : 1;
-    for (const [id, w] of Object.entries(W)) { w.group.visible = w.loaded && (id === to || (moving && id === from)); w.uDir.value = moving && id === from ? -1 : 1; }
-    uni.uP.value = moving ? p : 1;
+    // In a solid blend (the roll-in switch) the leaving world stays drawn until the switch ends, not only until p reaches 1:
+    // the roll reaches p = 1 while the old copies at the rider are still there, and their props would vanish before the new
+    // ones beside them had faded in. Which world shows at each place is left to copyOpacity.
+    const {from, to, p} = state, moving = from !== to && (p < 1 || !!state.solid), k = moving ? p * p * (3 - 2 * p) : 1;
+    for (const [id, w] of Object.entries(W)) { const show = w.loaded && (id === to || (moving && id === from)); w.group.visible = show;
+      if (show) { if (!w.group.parent) scene.add(w.group); } else if (w.group.parent) scene.remove(w.group);
+      w.uDir.value = moving && !state.solid && id === from ? -1 : 1; }
+    uni.uP.value = moving && !state.solid ? p : 1;
     const a = LIGHT[from] || LIGHT.day, b = LIGHT[to] || LIGHT.day, mix = (x, y) => x + (y - x) * k;
     hemi.color.copy(cA.set(a.sky)).lerp(cB.set(b.sky), k); hemi.groundColor.copy(cA.set(a.gnd)).lerp(cB.set(b.gnd), k); hemi.intensity = mix(a.hemi, b.hemi);
     sun.color.copy(cA.set(a.sun)).lerp(cB.set(b.sun), k); sun.intensity = mix(a.sunI, b.sunI); fill.color.copy(sun.color); fill.intensity = mix(a.fillI, b.fillI);
   }
-  function setWorld(id) { if (state.to === id && state.from === id && state.p === 1) return; state.from = state.to = id; state.p = 1; apply(); }
-  function blend(from, to, p) { state.from = from; state.to = to; state.p = p; apply(); }
+  function setWorld(id) { if (state.to === id && state.from === id && state.p === 1) return; state.from = state.to = id; state.p = 1; state.solid = false; apply(); }
+  // solid: both worlds' props are drawn whole (no dissolve); which of them shows where is then left to copyOpacity, as
+  // in the switch that rolls in a tile copy at a time
+  function blend(from, to, p, solid = false) { state.from = from; state.to = to; state.p = p; state.solid = solid; apply(); }
 
   // Where a rock placed at `lap` metres round the lap lies this lap, near the rider at R (metres along). The lap is not a whole
   // number of tiles, so it falls at a different place in the tile each lap; if that is on the seam between two tile copies
@@ -313,9 +322,13 @@ export function createProps(scene, o) {
   // before and after (see setObstacles), and with a longer reach one of those copies would stand level with the bike, an
   // invisible gate leg in the road a tile before the gate.
   const _cols = [];
+  // During a roll-in switch (solid blend) the props drawn near the bike are still the leaving world's until the change
+  // reaches the rider, so both worlds' drawn props count; each instance's visible flag says which is drawn where.
   function colliders(along) {
-    _cols.length = 0; const w = W[state.to]; if (!w || !w.loaded) return _cols; const R = along / upm;
-    for (const inst of w.insts) { const d = inst.userData; if (!inst.visible || !d.col.length || Math.abs(d.A - R) > PlM * 0.46) continue; for (const c of d.col) _cols.push({a: d.A + c.da, lat: c.lat, r: c.r}); }
+    _cols.length = 0; const R = along / upm;
+    const ws = state.solid && state.from !== state.to ? [W[state.to], W[state.from]] : [W[state.to]];
+    for (const w of ws) { if (!w || !w.loaded || !w.group.visible) continue;
+      for (const inst of w.insts) { const d = inst.userData; if (!inst.visible || !d.col.length || Math.abs(d.A - R) > PlM * 0.46) continue; for (const c of d.col) _cols.push({a: d.A + c.da, lat: c.lat, r: c.r}); } }
     return _cols;
   }
   apply();

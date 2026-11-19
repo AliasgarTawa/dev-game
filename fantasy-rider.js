@@ -109,6 +109,7 @@ export function createRider(renderer, {onStatus = () => {}, arms = true, after =
   for (const k of NEW) U[k] = {p, dir: {value: 0}};
   // bikes: {root, front, wheel, axis, radius} per kind
   const state = {bikes: {}, arms: null, steer: 0, t: 0, from: worlds[0], to: worlds[0], p: 1, loaded: []};
+  const nightTex = [];      // the woodland bike's night skin textures (for warmStep)
   const gltf = new GLTFLoader(), seen = new Set(), pause = ms => new Promise(r => setTimeout(r, ms));
   // Loads start once `after` settles (the page passes "first world is in", so the downloads do not all hit the server at once),
   // and a failed download is retried: the local server refuses connections under a burst.
@@ -167,6 +168,7 @@ export function createRider(renderer, {onStatus = () => {}, arms = true, after =
       const other = materialsOf(night.scene)[0];      // same shape and UVs as the day bike: only its skin is used
       if (!other?.map) throw new Error('night skin has no colour texture');
       for (const k of MAPS) shrink(other[k], seen);
+      for (const k of MAPS) if (other[k]) nightTex.push(other[k]);
       for (const m of materialsOf(day.scene)) { for (const k of MAPS) shrink(m[k], seen); patch(m, U.roots, 'roots', other); }
       addBike('roots', day.scene, rig['roots-day']);
       state.bikes.roots.grips = measureGrips(state.bikes.roots.front);      // the paws were fitted to the desert bike; this bike's grips sit elsewhere
@@ -248,15 +250,53 @@ export function createRider(renderer, {onStatus = () => {}, arms = true, after =
   }
   const dir = new THREE.Vector3(), right = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), tgt = new THREE.Vector3();
   // yaw / pitch in degrees, as the world camera's look-around uses them (yaw right positive, pitch down positive)
-  function render(aspect, {yaw = 0, pitch = 0, fov = 60} = {}) {
+  // first: the page draws the bike BEFORE the world (fantasy.html renderAll, ?riderz=0 turns it off) on a freshly cleared
+  // canvas, so the world's splats hidden under the bars, fender and arms fail the depth test instead of being shaded and then
+  // painted over. The bike's depth is squeezed into the front tenth of the depth range (gl.depthRange 0 to 0.1), which keeps
+  // everything in the world farther than about 1.1 x its 5 cm near plane behind it, as the old draw-on-top did.
+  function render(aspect, {yaw = 0, pitch = 0, fov = 60, first = false} = {}) {
     if (!Object.keys(state.bikes).length) return;
     camera.aspect = aspect; camera.fov = THREE.MathUtils.clamp(fov, POV.minFov, POV.maxFov);
     camera.position.copy(POV.eye);
     dir.set(0, 0, -1).applyAxisAngle(UP, -yaw * Math.PI / 180); right.crossVectors(dir, UP).normalize();
     dir.applyAxisAngle(right, -(pitch + POV.pitchDown) * Math.PI / 180);
     camera.up.copy(UP); camera.lookAt(tgt.copy(camera.position).add(dir)); camera.updateProjectionMatrix();
-    const ac = renderer.autoClear; renderer.autoClear = false; renderer.clearDepth(); renderer.render(scene, camera); renderer.autoClear = ac;
+    const ac = renderer.autoClear; renderer.autoClear = false;
+    if (first) { const gl = renderer.getContext(); gl.depthRange(0, 0.1); try { renderer.render(scene, camera); } finally { gl.depthRange(0, 1); renderer.autoClear = ac; } return; }
+    renderer.clearDepth(); renderer.render(scene, camera); renderer.autoClear = ac;
   }
-  apply();
-  return {scene, camera, mount, state, ready, setWorld, blend, update, render, uniforms: U};
+  // Compile and upload every vehicle once after load (fantasy.html, ?riderwarm=0 turns it off), instead of inside the first
+  // riding frame after a switch into its world: up to 6 maps of up to 2048 px with mipmaps and one program link per vehicle.
+  // The page calls warmStep() once per drawn frame, just before that frame's own draw (which clears the canvas after it).
+  // Each call does one small piece: one texture upload; or, per vehicle (and then the arms), starting its program build
+  // without waiting for it (compileAsync, with parallel compiling the link finishes off the main thread); or, once that is
+  // ready, one draw of that vehicle with only one pixel of the canvas writable (scissor). The draw goes into the canvas itself
+  // so it uses the very program the real draw will (a render target would build another variant), and it catches what the
+  // compile step cannot see, such as the snowmobile body's clipping planes. Returns false once everything is done.
+  let warmQ = null, warmWait = null;
+  const otherRoots = () => mount.children.filter(o => !Object.values(state.bikes).some(b => b.root === o));      // the arms
+  function only(k) {      // show just vehicle k (or the arms): root visibility only, so the snowmobile's glass stays hidden
+    const saved = mount.children.map(o => [o, o.visible]), arm = otherRoots();
+    for (const b of Object.values(state.bikes)) b.root.visible = k !== 'arms' && state.bikes[k] === b;
+    for (const o of arm) o.visible = k === 'arms';
+    return () => { for (const [o, v] of saved) o.visible = v; apply(); };
+  }
+  function warmStep() {
+    if (!warmQ) { warmQ = []; const seen = new Set();
+      const kinds = Object.keys(state.bikes); if (state.arms) kinds.push('arms');
+      for (const k of kinds) {
+        const roots = k === 'arms' ? otherRoots() : [state.bikes[k].root], texs = [];
+        for (const r of roots) r.traverse(o => { if (!o.isMesh) return; for (const m of Array.isArray(o.material) ? o.material : [o.material]) if (m) for (const q of MAPS) { const t = m[q]; if (t && t.isTexture && !seen.has(t)) { seen.add(t); texs.push(t); } } });
+        if (k === 'roots') for (const t of nightTex) if (!seen.has(t)) { seen.add(t); texs.push(t); }      // samplers only the patched shader reads
+        for (const t of texs) warmQ.push(() => renderer.initTexture(t));
+        warmQ.push(() => { const back = only(k); try { warmWait = renderer.compileAsync(scene, camera).catch(() => {}).finally(() => { warmWait = null; }); } finally { back(); } });
+        warmQ.push(() => { const back = only(k), ac = renderer.autoClear, sc = renderer.getScissorTest(), box = renderer.getScissor(new THREE.Vector4()), target = renderer.getRenderTarget();
+          try { renderer.setRenderTarget(null); renderer.autoClear = false; renderer.setScissor(0, 0, 1, 1); renderer.setScissorTest(true); renderer.render(scene, camera); }
+          finally { renderer.setScissorTest(sc); renderer.setScissor(box); renderer.setRenderTarget(target); renderer.autoClear = ac; back(); } });
+      } }
+    if (warmWait) return true;      // a program is still being built off the main thread
+    const f = warmQ.shift(); if (!f) return false;
+    f(); return warmQ.length > 0 || !!warmWait;
+  }
+  return {scene, camera, mount, state, ready, setWorld, blend, update, render, warmStep, uniforms: U};
 }

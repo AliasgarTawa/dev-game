@@ -14,7 +14,7 @@
 // every pick carries a serial number, each generated set remembers the serials it was made from, and the worker keeps
 // the last two picks of every tile copy. A set is only ever sorted with the picks it was made from.
 //
-// Safety: the first time a world's tile, or a combination of worlds, is drawn, the worker's distances are compared with
+// Safety: the first time a world's tile (with ?sortcheck=strict also each combination of worlds) is drawn, the worker's distances are compared with
 // the renderer's own read (they agree to about 0.001%). While o.hold() is true (the rainfall world switch, with two whole
 // worlds drawn at once) the renderer's own read is used, as before: with the worker that reveal lost frames to the checks. A mismatch, an error, or three missing answers in a row switch this off for the session and the
 // renderer goes back to reading from the graphics card. Nothing here can stop the frame loop: every path returns distances.
@@ -37,7 +37,7 @@ function workerMain() {
   // mesh key -> the last two picks for that tile copy: the same triples for the picked splats, gathered once per pick
   // in the order the renderer keeps them. Gathering jumps about in memory; after it, each set of distances is one
   // straight pass.
-  const tiles = new Map(), picks = new Map();
+  const tiles = new Map(), picks = new Map(); let miss = null;      // miss: why the last fill() failed (diagnosis)
   const PX = new Float64Array(4), PY = new Float64Array(4), PH = new Float64Array(4), KK = new Float64Array(4), IK = new Float64Array(4), SP = new Float64Array(4), CP = new Float64Array(4), OFF = new Float64Array(4);
   const RF = new Float64Array(4), S0 = new Float64Array(4), C0 = new Float64Array(4);
 
@@ -56,7 +56,7 @@ function workerMain() {
     for (const q of m.meshes) {
       if (q.empty) continue;      // an invisible copy without a pick yet: left at infinity, not drawn
       const pk = picks.get(q.key), ix = pk && (pk[0] && pk[0].serial === q.serial ? pk[0] : pk[1] && pk[1].serial === q.serial ? pk[1] : null);
-      if (!ix || !ix.G || ix.n !== q.count) return false;
+      if (!ix || !ix.G || ix.n !== q.count) { miss = {serial: q.serial, count: q.count, held: pk ? pk.filter(Boolean).map(x => [x.serial, x.n, !!x.G]) : null}; return false; }
       const G = ix.G, base = q.base, n = q.count;
       const px0 = q.x - B.P0[0], py0 = q.y - B.P0[1], pz0 = q.z - B.P0[2];
       const oa = px0 * tx + py0 * ty + pz0 * tz - b.a0, ol = px0 * rx + py0 * ry + pz0 * rz, oh = px0 * ux + py0 * uy + pz0 * uz;
@@ -92,28 +92,39 @@ function workerMain() {
       else if (m.t === 'pick') { const t = tiles.get(m.tile), I = m.I, n = m.n; let G = null;
         if (t) { const C = t.C, N = t.n; G = new Float32Array(n * 3); for (let i = 0, g = 0; i < n; i++, g += 3) { const j = I[i]; if (j < N) { const c = j * 3; G[g] = C[c]; G[g + 1] = C[c + 1]; G[g + 2] = C[c + 2]; } else G[g] = G[g + 1] = G[g + 2] = 1e30; } }
         const pk = picks.get(m.key) || [null, null]; pk[1] = pk[0]; pk[0] = {serial: m.serial, G, n, mid: t ? t.mid : 0}; picks.set(m.key, pk); }
-      else if (m.t === 'keys') { const t0 = performance.now(), ok = fill(m); postMessage({t: 'keys', seq: m.seq, ok, out: m.out, ms: performance.now() - t0}, [m.out.buffer]); }
+      else if (m.t === 'keys') { const t0 = performance.now(); miss = null; const ok = fill(m); postMessage({t: 'keys', seq: m.seq, ok, miss, out: m.out, ms: performance.now() - t0}, [m.out.buffer]); }
     } catch (err) { postMessage({t: 'error', seq: m.seq, message: String(err), out: m.out || null}, m.out ? [m.out.buffer] : []); }
   };
 }
 
 // spark: the SparkRenderer. o: {P0, Tu, RIGHT, up} (THREE.Vector3, as the bend shader uses them) and bend(reuse) ->
 // {a0, cx, cy, phi, k0, k1, k2, k3, ln0, ln1}, the bend's inputs as the shader has them now; hold() -> true while the
-// renderer's own read should be used (a world switch).
-// Returns {state, off(reason)} or null if it could not start (the renderer then carries on as before).
+// renderer's own read should be used (a world switch); eye(pos, dir) -> pos: copies the camera's world position and view
+// direction into pos and dir (THREE.Vector3), used while the renderer skips camera-only generates.
+// Returns {state, off(reason), pickAt(mesh), live()} or null if it could not start (the renderer then carries on as before).
 export function createSortKeys(spark, o) {
-  const {P0, Tu, RIGHT, up, bend, hold = () => false} = o;
+  const {P0, Tu, RIGHT, up, bend, hold = () => false, eye: liveEye = null, strict = () => false} = o;
   const proto = spark.display && Object.getPrototypeOf(spark.display);
   if (typeof spark.readbackDepth !== 'function' || typeof spark.updateLodIndices !== 'function' || !proto || typeof proto.prepareGenerate !== 'function' || typeof Worker === 'undefined') return null;
   // worker / card: sorts fed by the worker / by the renderer's own read from the graphics card (reasons says why)
   // pause: set true (from the console or a test) to use the renderer's own read for a while, to compare the two in one ride
-  const state = {on: true, pause: false, why: '', worker: 0, card: 0, checked: 0, slow: 0, lastMs: 0, maxMs: 0, worst: 0, left: 0, reasons: {}};      // left: worker sorts that left out an invisible copy with no pick yet
-  const count = why => { state.card++; state.reasons[why] = (state.reasons[why] || 0) + 1; };
+  const state = {on: true, pause: false, why: '', worker: 0, card: 0, checked: 0, slow: 0, lastMs: 0, maxMs: 0, worst: 0, left: 0, reasons: {}, fresh: 0, stale: 0, test: 0};      // left: worker sorts that left out an invisible copy with no pick yet
+  // fresh / stale: card reads (not checks) under the camera-only skip that waited for and read a fresh generate / read the
+  // old set (see cardRead); test: set to N (from a test) to send the next N sorts to the card's read (reason 'test')
+  // A sort fed by the card's read takes its distances from the last generate. With the renderer's camera-only skip on
+  // (spark.duneGenMoveMax > 0, see the note at readbackDepth below) that generate may be up to the drift cap behind the
+  // eye, so the next frame is made to generate (spark.duneForceGen), and the read itself waits for that generate and reads
+  // the fresh set (cardRead below).
+  // log: the last 200 card reads, each {t (performance.now), why, and for a check: sig (the tiles in play), ok (the
+  // worker answered with every pick held), bad (mismatching samples), rec (recorded as checked)}; for diagnosis only
+  state.log = [];
+  const note = e => { e.t = Math.round(performance.now()); state.log.push(e); if (state.log.length > 200) state.log.shift(); };
+  const count = (why, extra) => { state.card++; state.reasons[why] = (state.reasons[why] || 0) + 1; note(Object.assign(extra || {}, {why})); if (spark.duneGenMoveMax > 0) spark.duneForceGen = true; };
   const url = URL.createObjectURL(new Blob(['(' + workerMain.toString() + ')()'], {type: 'text/javascript'}));
   const worker = new Worker(url);
   worker.postMessage({t: 'init', P0: P0.toArray(), T: Tu.toArray(), R: RIGHT.toArray(), U: up.toArray()});
-  let seq = 0, pending = null, buf = null;      // the request in flight, and the spare distance buffer that travels to the worker and back
-  const off = why => { if (!state.on) return; state.on = false; state.why = String(why); console.warn('sort distances: back to the renderer\'s own read (' + state.why + ')'); try { worker.terminate(); URL.revokeObjectURL(url); } catch (e) {} if (pending) { const p = pending; pending = null; clearTimeout(p.timer); p.resolve(null); } };
+  let seq = 0, pending = null, buf = null, genWait = [];      // genWait: reads waiting for the next generate (cardRead)      // the request in flight, and the spare distance buffer that travels to the worker and back
+  const off = why => { if (!state.on) return; state.on = false; state.why = String(why); spark.duneForceGen = true; console.warn('sort distances: back to the renderer\'s own read (' + state.why + ')'); try { worker.terminate(); URL.revokeObjectURL(url); } catch (e) {} if (pending) { const p = pending; pending = null; clearTimeout(p.timer); p.resolve(null); } };
 
   // each tile's splat centres go to the worker once; each level-of-detail pick sends the splats chosen for each copy
   const tileIds = new WeakMap(), tileOk = new Map(), meshPick = new WeakMap(), okSets = new Set(); let nextTile = 1, serial = 0;
@@ -143,7 +154,8 @@ export function createSortKeys(spark, o) {
         for (let i = 0; i < mp.length; i++) { const node = mp[i].node, e = node.matrixWorld.elements, p = s.pos[i] || (s.pos[i] = [0, 0, 0]), pk = meshPick.get(node);
           if (e[0] !== 1 || e[5] !== 1 || e[10] !== 1 || e[1] || e[2] || e[4] || e[6] || e[8] || e[9]) s.ok = false;      // copies are only ever moved, never turned or scaled
           p[0] = e[12]; p[1] = e[13]; p[2] = e[14]; s.pick[i] = pk ? pk.serial : 0; s.op[i] = node.opacity; }
-        s.bend = bend(s.bend); } catch (err) { acc.__keys = null; } };
+        s.bend = bend(s.bend); } catch (err) { acc.__keys = null; }
+      if (genWait.length) { const w = genWait; genWait = []; for (const f of w) try { f(acc); } catch (e) {} } };
     return r;
   };
 
@@ -151,34 +163,70 @@ export function createSortKeys(spark, o) {
     if (pending && m.seq === pending.seq) { const p = pending; pending = null; clearTimeout(p.timer); p.resolve(m); } };
   worker.onerror = e => off('worker: ' + (e && e.message || 'error'));
 
+  const _eye = P0.clone(), _dir = P0.clone();      // the live eye and view direction a sort was made from (scratch vectors)
   const read0 = spark.readbackDepth;
+  // A sort that must fall back to the card's read (not a first-use check) while the renderer skips camera-only generates
+  // (spark.duneGenMoveMax > 0): the set it would read may have been generated up to the drift cap behind the eye, and that
+  // order would be drawn until the next sort. So if the set is stale, the next frame is made to generate (duneForceGen),
+  // this read waits for it (at most 100 ms, then reads the old set as before) and reads the fresh set instead when it has
+  // the same mapping and splat count (the same layout as the set driveSort captured). state.fresh / state.stale count both.
+  const _eye2 = P0.clone(), _dir2 = P0.clone();
+  const cardRead = async (self, a) => {
+    try { const cur = a.current;
+      if (!state.on || !(spark.duneGenMoveMax > 0) || typeof liveEye !== 'function' || !self.display || cur.mappingVersion !== self.display.mappingVersion || liveEye(_eye2, _dir2).distanceTo(cur.viewOrigin) <= 1e-3) return read0.call(self, a);
+      spark.duneForceGen = true;
+      const acc = await new Promise(resolve => { const f = x => { clearTimeout(tm); resolve(x); }, tm = setTimeout(() => { genWait = genWait.filter(g => g !== f); resolve(null); }, 100); genWait.push(f); });
+      const c = self.current;
+      if (state.on && acc && c === acc && c !== cur && c.mappingVersion === cur.mappingVersion && c.numSplats === a.numSplats && c.target) {
+        state.fresh++; const r = await read0.call(self, Object.assign({}, a, {current: c})); self.sortedCenter.copy(c.viewOrigin); self.sortedDir.copy(c.viewDirection); return r; }
+      state.stale++;
+    } catch (e) { state.stale++; }
+    return read0.call(self, a);
+  };
   spark.readbackDepth = async function (a) {
     if (!state.on) return read0.call(this, a);
-    let msg = null, check = false, why = '', sig = '', tilesIn = null; const skip = [];
+    let msg = null, check = false, why = '', sig = '', tilesIn = null, live = false; const skip = [];
     try { const {current, numSplats} = a, s = current.__keys, mp = current.mapping;
-      if (state.pause) why = 'paused'; else if (hold()) why = 'world switch'; else if (!s || !s.ok || !s.bend || s.n !== mp.length) why = 'no snapshot'; else if (pending) why = 'busy';
+      if (state.pause) why = 'paused'; else if (hold()) why = 'world switch'; else if (state.test > 0) { state.test--; why = 'test'; } else if (!s || !s.ok || !s.bend || s.n !== mp.length) why = 'no snapshot'; else if (pending) why = 'busy';
       else { const meshes = []; tilesIn = new Set(); sig = '';
         for (let i = 0; i < mp.length; i++) { const q = mp[i], pk = meshPick.get(q.node);
           // A copy that has just been shown (the roll-in switch, or a copy moved to the far end) is held at opacity 0 until
           // its detail pick arrives. Without a pick its distances cannot be worked out here, and these sorts went to the
           // blocking read, several per switch (up to a second each with the card busy). It is invisible, so it is left out
           // of this sort instead (its slots stay at infinity: not drawn); the renderer's read would have drawn it at 0.
-          if ((!pk || !s.pick[i]) && s.op && s.op[i] === 0) { meshes.push({key: q.node.uuid, empty: true, base: q.base, count: q.count}); skip.push(q.base, q.base + q.count); continue; }
+          // Not strict(): any invisible copy is left out, whatever pick it holds (it draws nothing either way).
+          // Measured 2026-11-18: when a world was shown again after a third world had been in play, its copies were generated
+          // at the tile's full splat count while the pick with the matching serial held far fewer splats (why the renderer
+          // drew them whole is not established), so every sort during the roll fell back to the blocking read ('pick not
+          // held', 7 to 15 per switch, 100 to 500 ms of blocking in all). Those copies were still at opacity 0 (waiting for
+          // their pick); a visible copy with such a mismatch still falls back to the card's read.
+          if ((!pk || !s.pick[i] || !strict()) && s.op && s.op[i] === 0) { meshes.push({key: q.node.uuid, empty: true, base: q.base, count: q.count}); skip.push(q.base, q.base + q.count); continue; }
           if (!pk || !s.pick[i]) { why = 'no pick yet'; break; } if (!tileOk.get(pk.tile)) check = true;
           tilesIn.add(pk.tile);
           meshes.push({key: q.node.uuid, serial: s.pick[i], base: q.base, count: q.count, x: s.pos[i][0], y: s.pos[i][1], z: s.pos[i][2]}); }
         if (!why) { sig = [...tilesIn].sort().join(',');
-          if (!okSets.has(sig)) check = true;      // a combination of worlds not checked yet (the first ride in a world, the first switch between two): check it once
+          // strict() (fantasy.html ?sortcheck=strict): also check every combination of worlds not checked together yet. Off (the
+          // default): a check runs only while some tile in play is unchecked. The distances of each copy are worked out on
+          // their own (fill() never looks at the other tiles present), so a combination of checked tiles needs no check of
+          // its own. Measured 2026-11-18: the first switch into a world checked twice, once with both worlds in play and once
+          // more with only the new one, and a switch between two already-checked worlds out of the title order checked again.
+          if (strict() && !okSets.has(sig)) check = true;
           if (!buf || buf.length < numSplats) buf = new Float32Array(Math.ceil(numSplats * 1.25 / 16384) * 16384);
-          const eye = current.viewOrigin; msg = {t: 'keys', seq: ++seq, n: numSplats, eye: [eye.x, eye.y, eye.z], b: Object.assign({}, s.bend), meshes, out: buf}; } }
+          // The eye: where the last generate was made from, or, while the renderer skips camera-only generates
+          // (spark.duneGenMoveMax > 0, set by fantasy.html), the camera's position now. The splats' places in the generated
+          // set do not depend on the eye (packed centres are stored relative to the generate's origin and the draw adds it
+          // back), so an order worked out from the live eye is the right order for that older set. A first-use check keeps the
+          // generate's origin: it is compared with the card's distances, which were measured from there.
+          live = !check && spark.duneGenMoveMax > 0 && typeof liveEye === 'function';
+          const eye = live ? liveEye(_eye, _dir) : current.viewOrigin; msg = {t: 'keys', seq: ++seq, n: numSplats, eye: [eye.x, eye.y, eye.z], b: Object.assign({}, s.bend), meshes, out: buf}; } }
     } catch (e) { off('request: ' + e); }
-    if (!msg) { count(why || 'off'); return read0.call(this, a); }
+    if (!msg) { count(why || 'off'); return cardRead(this, a); }
     const out = msg.out; buf = null;
     const answer = new Promise(resolve => { pending = {seq: msg.seq, resolve, timer: setTimeout(() => { if (pending && pending.seq === msg.seq) { pending = null; resolve(null); } }, 1500)}; });
     worker.postMessage(msg, [out.buffer]);
     const {numSplats, readback} = a;
     if (check) {      // first use of a tile, or of this set of tile copies: the renderer's own read as well, and the two must agree
-      await read0.call(this, a); const m = await answer; count('check');
+      await read0.call(this, a); const m = await answer; const info = {sig, ok: !!(m && m.t === 'keys' && m.ok), rec: false}; count('check', info);
       if (m && m.t === 'keys' && m.ok && state.on) { const g = new Float32Array(readback.buffer, readback.byteOffset, numSplats), c = m.out; let n = 0, bad = 0, worst = 0;
         // The card works in float32 on world positions that grow with every lap (copies are never moved back), so near the
         // eye its distances lose absolute precision late in a long ride; allow a few float32 steps at the largest coordinate
@@ -187,20 +235,24 @@ export function createSortKeys(spark, o) {
         const tol = 8 * mag * 1.1920929e-7, left = i => { for (let j = 0; j < skip.length; j += 2) if (i >= skip[j] && i < skip[j + 1]) return true; return false; };
         for (let i = 0; i < numSplats; i += 53) { if (skip.length && left(i)) continue; const gi = g[i], ci = c[i], gf = gi < 1e30, cf = ci < 1e30; n++;
           if (gf !== cf) bad++; else if (gf) { const d = Math.abs(gi - ci), r = d / Math.max(gi, 1e-9); if (r > worst) worst = r; if (d > 2e-3 * gi + tol) bad++; } }
-        state.worst = Math.max(state.worst, worst);
+        state.worst = Math.max(state.worst, worst); info.bad = bad;
         if (bad > n * 0.002) off('distances differ: ' + bad + ' of ' + n + ' sampled, worst ' + worst.toExponential(2));
-        else { for (const t of tilesIn) tileOk.set(t, true); okSets.add(sig); state.checked++; } }
+        else { for (const t of tilesIn) tileOk.set(t, true); okSets.add(sig); state.checked++; info.rec = true; } }
       return readback;
     }
     const m = await answer;
-    if (!m || m.t !== 'keys') { count(m ? 'worker error' : 'no answer'); if (state.on && ++state.slow >= 3) off(m ? 'worker error: ' + m.message : 'no answer from the worker, three times running'); return read0.call(this, a); }
-    if (!m.ok) { count('pick not held'); return read0.call(this, a); }      // more than two picks went by since this set was generated (rare)
+    if (!m || m.t !== 'keys') { count(m ? 'worker error' : 'no answer'); if (state.on && ++state.slow >= 3) off(m ? 'worker error: ' + m.message : 'no answer from the worker, three times running'); return cardRead(this, a); }
+    if (!m.ok) { count('pick not held', {miss: m.miss}); return cardRead(this, a); }      // more than two picks went by since this set was generated (rare)
     new Float32Array(readback.buffer, readback.byteOffset, numSplats).set(m.out.subarray(0, numSplats));
     state.worker++; state.slow = 0; state.lastMs = m.ms; if (m.ms > state.maxMs) state.maxMs = m.ms; if (skip.length) state.left++;
+    if (live) { this.sortedCenter.copy(_eye); this.sortedDir.copy(_dir); }      // driveSort set them to the generate's origin
     return readback;
   };
   // when the last detail pick for a tile copy arrived (performance.now()), 0 if it never had one; -1 once this module is
   // off, so that nothing waits on picks it no longer records
   const pickAt = mesh => { if (!state.on) return -1; const pk = meshPick.get(mesh); return pk ? pk.at : 0; };
-  return {state, off, pickAt};
+  // true while sorts are worked out here (not off, not paused, no world switch holding the card's read): the page lets the
+  // renderer skip camera-only generates only then
+  const usable = () => state.on && !state.pause && !hold();
+  return {state, off, pickAt, live: usable};
 }

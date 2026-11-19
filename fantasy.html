@@ -18,7 +18,7 @@ button.active{background:#d9ecc0;color:#14201e}#status{color:#cfe3b4;margin:6px 
 @keyframes coverbar{from{background-position:-100% 0}to{background-position:300% 0}}
 @media(prefers-reduced-motion:reduce){#covermsg::after{animation:none;background:#d9ecc0}#cover,#coverimg{transition:none}}
 </style>
-<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/","@sparkjsdev/spark":"./vendor/spark.module.js"}}</script></head>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/","@sparkjsdev/spark":"./vendor/spark.module.js?v=20261118a"}}</script></head>
 <body><div id="cover"><div id="coverimg"></div><div id="covermsg">Loading</div></div><script>(function(){var m=/[?&]scene=([^&]*)/.exec(location.search),c=document.getElementById("cover");if(!m||m[1]==="worlds"){c.classList.add("on");window.__liftCover=function(){c.classList.add("lift");setTimeout(function(){c.remove()},900)};setTimeout(function(){if(c.isConnected&&!c.classList.contains("lift"))window.__liftCover()},30000);addEventListener("error",function(){if(c.isConnected)window.__liftCover()})}})()</script><div id="panel"><h1 id="title">Fantasy road</h1>
 <div id="scenes"></div>
 <div id="styles" style="display:none"></div>
@@ -34,7 +34,7 @@ button.active{background:#d9ecc0;color:#14201e}#status{color:#cfe3b4;margin:6px 
 // fantasy-scenes.json lists the scenes; each scene's JSON (from lane_review.py) holds the filmed path, the up axis, scene units per
 // metre (from an assumed 1.6 m camera height) and the corridor the review supports: half-width, height range, turn limit, ride-on past the end.
 import * as THREE from 'three';
-import {SparkRenderer,SplatMesh,dyno} from '@sparkjsdev/spark';import {createRider} from './fantasy-rider.js?v=1794980868';import {createAudio} from './fantasy-audio.js?v=1794980868';import {createProps} from './fantasy-props.js?v=1794980868';import {createSortKeys} from './fantasy-sort.js?v=1794980868';
+import {SparkRenderer,SplatMesh,dyno} from '@sparkjsdev/spark';import {createRider} from './fantasy-rider.js?v=1795053801';import {createAudio} from './fantasy-audio.js?v=1795053801';import {createProps} from './fantasy-props.js?v=1795053801';import {createSortKeys} from './fantasy-sort.js?v=1795053801';
 const $=id=>document.getElementById(id),status=$('status');
 window.addEventListener('unhandledrejection',e=>status.textContent='Load error: '+e.reason);
 const params=new URLSearchParams(location.search);
@@ -62,6 +62,48 @@ const LOD=params.get('lod')?params.get('lod')==='1':!!cfg.worlds,LOD_N=+params.g
 // Sharpness: the blur added to every splat before drawing. 0.3 matched how the splats were trained; 0.18 is crisper (edges
 // measured 16% stronger at 0.12, with a little more grain), and costs nothing. ?preblur=0.3 puts the old value back.
 const spark=new SparkRenderer({renderer,enableLod:LOD,...(LOD?{lodSplatCount:LOD_N,lodTraverseMode:params.get('lodmode')||'dynamic',behindFoveate:.06,coneFov0:70,coneFov:105,coneFoveate:.25}:{}),preBlurAmount:matched?(params.get('preblur')!==null?+params.get('preblur'):.18):0,blurAmount:matched?0:.3,maxPixelRadius:maxPx});scene.add(spark);
+// Renderer speed-ups (2026-11-18; the edits in vendor/spark.module.js are marked DUNE-PERF). Each has its own off-switch
+// and a live toggle on window.__perf (e.g. __perf.gen=false), so old and new can be alternated inside one ride. With every
+// one off the renderer does what it did before. Defaults are in PERF_DEF. On: the seven that were tested together on fresh
+// loads (2026-11-18): against the same files with every switch off they gave more fps in 5 of 5 alternated rounds and cut
+// world-switch reads (sortcheck) and uploads (uprows) in 5 of 5; against the build before them (494ee2f) the first ride was not
+// distinguishable on a loaded Mac (every build ran 60 fps with no long frame on a quiet one). Off: gen and fadesteps (the
+// build with them on had more long frames and less fps in 4 of 5 rounds; which of the two was not separated) and minalpha
+// (no gain, slight picture change). ?perf=1 turns every one on, ?perf=0 every one off; a switch's own parameter (?gen=1,
+// ?gen=0) wins over both.
+//  gen (?gen=0): while riding with the worker sort on, a frame where only the camera moved no longer regenerates every
+//   splat (about 5 ms of graphics card time a frame); the worker re-sorts from the live eye instead. The renderer still
+//   regenerates on every detail pick, copy move, fade step and bend change, and once the eye is ?genmove= metres (3) from
+//   where the last set was made (splat centres are half floats relative to that place). __perf.gens / skips count both.
+//  fadesteps (?fadesteps=0): a tile copy moved to the far end fades in in 4 steps (?fadesteps=N) instead of on every frame
+//   (each opacity change regenerates every splat and asks for a new detail pick). The roll-in switch keeps its smooth fade.
+//  uprows (?uprows=0): only the drawn rows of each new draw order and of each detail pick are uploaded, not the whole room.
+//  ordpool (?ordpool=0): the draw-order array (6 to 13 MB) is reused instead of a new one for every sort.
+//  alphacut (?alphacut=0): each splat's quad is shrunk to where the splat is visible at all (the same pixels, fewer drawn).
+//  minalpha (?minalpha=0): splat contributions under 1/255 are dropped (Spark's default is 0.5/255): a slight picture change.
+const PERF_DEF={gen:false,fadesteps:false,uprows:true,ordpool:true,alphacut:true,minalpha:false,riderz:true,scan:true,riderwarm:true,sortcheck:true};
+const perfSw=(k,off='0')=>{const v=params.get(k),all=params.get('perf');return v!==null?v!==off:all==='1'?true:all==='0'?false:PERF_DEF[k]};
+const PERF={gen:perfSw('gen'),genMove:Math.max(0,+params.get('genmove')||3),fadesteps:perfSw('fadesteps')?Math.max(1,Math.round(+params.get('fadesteps')||4)):0};
+Object.defineProperties(PERF,{uprows:{get:()=>spark.duneUploadDrawnRows,set:v=>{spark.duneUploadDrawnRows=!!v},enumerable:true},
+ ordpool:{get:()=>spark.duneOrderingPool,set:v=>{spark.duneOrderingPool=!!v;if(!v)spark.duneOrderingSpare=null},enumerable:true},
+ alphacut:{get:()=>spark.duneAlphaQuad,set:v=>{spark.duneAlphaQuad=!!v},enumerable:true},
+ minalpha:{get:()=>spark.minAlpha>.75/255,set:v=>{spark.minAlpha=v?1/255:.5*(1/255)},enumerable:true},
+ gens:{get:()=>spark.duneGens,enumerable:true},skips:{get:()=>spark.duneSkips,enumerable:true},genActive:{get:()=>spark.duneGenMoveMax>0,enumerable:true}});
+PERF.uprows=perfSw('uprows');PERF.ordpool=perfSw('ordpool');PERF.alphacut=perfSw('alphacut');if(perfSw('minalpha'))PERF.minalpha=true;
+window.__perf=PERF;
+// Game-side speed-ups (2026-11-18), each with its own off-switch and, where it can change mid-ride, a live toggle on __perf:
+//  riderz (?riderz=0, live __perf.riderz or window.__riderFirst): the bike and arms are drawn BEFORE the world, so the splat
+//   pixels hidden under them fail the depth test instead of being shaded and painted over (see renderAll). Same picture.
+//  scan (?scan=old; __perf.scan affects worlds loaded after it is set): each world's lane, road and obstacle profiles are
+//   worked out from the splat centres alone (makeSet), not from fully unpacked splats. Same profiles, about 5x quicker.
+//  riderwarm (?riderwarm=0; read once, when the bikes have loaded): every vehicle is compiled and uploaded right after load,
+//   one per frame, not inside the first riding frame after a switch into its world.
+//  sortcheck (?sortcheck=strict, live __perf.sortcheck=false means strict): the worker's first-use check against the card's
+//   read runs once per world tile, not again for every new pair of already-checked worlds, and every invisible copy is left
+//   out of the worker's sort, also one holding a pick from an earlier visit (that one sent whole roll switches back to the
+//   blocking read). See fantasy-sort.js.
+PERF.riderz=perfSw('riderz');PERF.scan=perfSw('scan','old');PERF.riderwarm=perfSw('riderwarm');PERF.sortcheck=perfSw('sortcheck','strict');
+Object.defineProperty(window,'__riderFirst',{get:()=>PERF.riderz,set:v=>{PERF.riderz=!!v},configurable:true});
 // Endless loop (scenes whose JSON has "loop"; ?loop=0 or the Loop button turns it off): copies of one cropped period of the
 // passage (make_loop_tile.py) are laid end to end, T apart along the filmed direction, cross-fading over the overlap. The camera
 // is moved back by T when it passes the end of the period (forward by T when it backs past the start), so it never leaves the
@@ -365,7 +407,22 @@ function soundFrame(dt){hudFrame();const pos=camera.position;if(sndPos&&dt>0){co
  if(!sound)return;try{
  if(transition&&transition!==sndT)sound.cue(transition.to);sndT=transition;
  sound.update({speed:opening?0:Math.abs(bike.v),throttle:opening?0:bike.throttle,rpm:opening?0:bike.rpm,scrub:opening?0:Math.min(1,bike.scrub/4),active:mode==='ride'&&!opening,from:transition?transition.from:styleId,to:transition?transition.to:styleId,p:transition?(transition.roll?transition.p:revealP.value):1})}catch(e){console.error(e);sound=null}}
-function renderAll(){renderer.render(scene,camera);if(rider&&mode==='ride'&&!opening)try{rider.render(camera.aspect,{yaw,pitch,fov:camera.fov})}catch(e){console.error(e);rider=null}}
+// Rider first (PERF.riderz): clear the canvas as the world's own draw would (to its background colour), draw the bike into the
+// front tenth of the depth range (fantasy-rider.js), then the world with its automatic clear turned off (three clears for a
+// colour background even with autoClear off, which would wipe the bike). The skies are drawn with the depth test on in this
+// order, or they would paint over the bike; they write no depth, so they still never hide anything. Off: the old order.
+const depthSky=[],_clearC=new THREE.Color();if(dome)depthSky.push(dome.material);
+function renderAll(){const first=PERF.riderz&&rider&&mode==='ride'&&!opening;
+ for(const m of depthSky)m.depthTest=!!first;
+ if(first){const bg=scene.background,B=renderer.state.buffers;renderer.setRenderTarget(null);renderer.getClearColor(_clearC);const ca=renderer.getClearAlpha();
+  B.depth.setTest(true);B.depth.setMask(true);B.color.setMask(true);      // a clear is masked by the last draw's write masks
+  if(bg&&bg.isColor)renderer.setClearColor(bg,1);renderer.clear(true,true,false);renderer.setClearColor(_clearC,ca);
+  try{rider.render(camera.aspect,{yaw,pitch,fov:camera.fov,first:true})}catch(e){console.error(e);rider=null}
+  // no background and no automatic clear for this draw (clearing nothing instead makes the browser warn on every frame)
+  const ac=renderer.autoClear;renderer.autoClear=false;scene.background=null;
+  try{renderer.render(scene,camera)}finally{scene.background=bg;renderer.autoClear=ac}
+  return}
+ renderer.render(scene,camera);if(rider&&mode==='ride'&&!opening)try{rider.render(camera.aspect,{yaw,pitch,fov:camera.fov})}catch(e){console.error(e);rider=null}}
 
 let laneCur=null,switchTo=null;   // worlds: current (eased) lane {l,r,yaw}; the world a switch is heading to
 // Per-frame lane limits (metres to the left / right), when the scene JSON has them; otherwise one half-width everywhere.
@@ -451,7 +508,7 @@ if(BEND)bendSync();
 // tile centres, the level-of-detail picks and the bend below, so the page never waits. It checks itself against the
 // renderer's own read the first time each world is ridden and steps aside on any mismatch; during a world switch the
 // renderer's own read is used. ?cpusort=0 turns it off.
-let sortKeys=null;try{if(WORLDS&&BEND&&LOD&&params.get('cpusort')!=='0')sortKeys=createSortKeys(spark,{P0,Tu,RIGHT,up,hold:()=>{try{return (!!transition||busy)&&!(transition&&transition.roll)}catch(e){return false}},bend:q=>{q=q||{};const s=bSeg.value,k=bKv.value,l=bLn.value;q.a0=s.x;q.cx=s.y;q.cy=s.z;q.phi=s.w;q.k0=k.x;q.k1=k.y;q.k2=k.z;q.k3=k.w;q.ln0=l.x;q.ln1=l.y;return q}})}catch(e){console.error(e)}
+let sortKeys=null;try{if(WORLDS&&BEND&&LOD&&params.get('cpusort')!=='0')sortKeys=createSortKeys(spark,{P0,Tu,RIGHT,up,strict:()=>!PERF.sortcheck,eye:(p,d)=>{camera.getWorldPosition(p);camera.getWorldDirection(d);return p},hold:()=>{try{return (!!transition||busy)&&!(transition&&transition.roll)}catch(e){return false}},bend:q=>{q=q||{};const s=bSeg.value,k=bKv.value,l=bLn.value;q.a0=s.x;q.cx=s.y;q.cy=s.z;q.phi=s.w;q.k0=k.x;q.k1=k.y;q.k2=k.z;q.k3=k.w;q.ln0=l.x;q.ln1=l.y;return q}})}catch(e){console.error(e)}
 // With the worker a new draw order can be ready every frame (53 a second were measured), and each one is an upload of four
 // bytes for every splat the renderer has room for: 4 MB at first, about 11 MB once a world switch has drawn two worlds at
 // once (the renderer never gives that room back). At 30 a second those 11 MB uploads blocked the page for a third of the
@@ -490,6 +547,43 @@ const styleUrl=st=>LOOP?st.tile_ply:st.ply;
 const plyUrl=plyOverride||(STYLES?styleUrl(styleOf(styleId)):(LOOP?LOOP.tile_ply:entry.ply));
 const copyList=params.get('copies')?params.get('copies').split(',').map(Number):LOOP?.copies||[-1,0,1,2];   // ?copies=-1,0,1 for tests
 const EXT=params.has('ext')?params.get('ext')!=='0':!!cfg.ext_splats;   // full-precision (float32) centres: open scenes with far rocks get holes at Spark's default half precision
+// The per-world scan behind makeSet's profiles: for every splat centre, the obstacle map and road histogram counts, and for
+// every 8th the mean position along the period (sum, n) and the height list hs (returned sorted). PERF.scan (?scan=old
+// is the old way): read the centres straight from the packed array (three half floats: word 1 low and high, word 2 low, the
+// same layout fantasy-sort.js reads) and do the same arithmetic in the same order on plain numbers. The old way unpacked
+// every splat in full (colour, three exps for the scales, a rotation decode) and made two vectors for every 8th.
+// Same numbers either way: window.__scanCheck() runs both on every loaded world and compares them.
+let HALF=null;
+function scanWorld(m,ext,{O,Pu,PlM,road,NB,NLAT,hist,obst},fast){
+ let sum=0,n=0;const ps=m.packedSplats;
+ if(fast&&!ext&&ps&&m.splats===ps&&ps.packedArray&&ps.numSplats>0){
+  if(!HALF){HALF=new Float32Array(65536);const u=new Uint32Array(1),f=new Float32Array(u.buffer);
+   for(let h=0;h<65536;h++){const sg=h>>15&1,e=h>>10&31,mm=h&1023;let bits;
+    if(e===0){if(mm===0)bits=sg<<31;else{let mant=mm,ex=-14;while((mant&1024)===0){mant<<=1;ex--}bits=sg<<31|(ex+127)<<23|(mant&1023)<<13}}
+    else if(e===31)bits=sg<<31|(mm?0x7fc00000:0x7f800000);else bits=sg<<31|(e-15+127)<<23|mm<<13;u[0]=bits;HALF[h]=f[0]}}
+  const H=HALF,A=ps.packedArray,N=ps.numSplats,Ox=O.x,Oy=O.y,Oz=O.z,Px=P0.x,Py=P0.y,Pz=P0.z,Rx=RIGHT.x,Ry=RIGHT.y,Rz=RIGHT.z,Ux=up.x,Uy=up.y,Uz=up.z,Tx=Pu.x,Ty=Pu.y,Tz=Pu.z,R8=8*upm;
+  const hs=new Float64Array(Math.ceil(N/8));let nh=0;
+  for(let i=0;i<N;i++){const w1=A[i*4+1],cx=H[w1&65535],cy=H[w1>>>16],cz=H[A[i*4+2]&65535];
+   const wx=cx+Ox,wy=cy+Oy,wz=cz+Oz,lat=((wx-Px)*Rx+(wy-Py)*Ry+(wz-Pz)*Rz)/upm;
+   if(lat>-3&&lat<3){const ho=(wx*Ux+wy*Uy+wz*Uz-road)/upm;if(ho>.3&&ho<1.4){let uo=((cx*Tx+cy*Ty+cz*Tz)/upm)%PlM;if(uo<0)uo+=PlM;obst[Math.min(NB-1,Math.floor(uo/PlM*NB))*NLAT+Math.floor((lat+3)/.1)]++}}
+   if(lat>-.45&&lat<.45){const hg=(wx*Ux+wy*Uy+wz*Uz-road)/upm;if(hg>-.5&&hg<.5){let u=((cx*Tx+cy*Ty+cz*Tz)/upm)%PlM;if(u<0)u+=PlM;hist[Math.min(NB-1,Math.floor(u/PlM*NB))*50+Math.floor((hg+.5)*50)]++}}
+   if(i%8)continue;sum+=cx*Tx+cy*Ty+cz*Tz;n++;
+   if(Math.abs((wx-Px)*Rx+(wy-Py)*Ry+(wz-Pz)*Rz)<R8)hs[nh++]=(wx*Ux+wy*Uy+wz*Uz-road)/upm}
+  const out=hs.subarray(0,nh);out.sort();return {sum,n,hs:out,fast:true}}
+ const hs=[];
+ m.splats.forEachSplat((i,c)=>{
+  {const wx=c.x+O.x,wy=c.y+O.y,wz=c.z+O.z,lat=((wx-P0.x)*RIGHT.x+(wy-P0.y)*RIGHT.y+(wz-P0.z)*RIGHT.z)/upm;
+   if(lat>-3&&lat<3){const ho=(wx*up.x+wy*up.y+wz*up.z-road)/upm;if(ho>.3&&ho<1.4){let uo=((c.x*Pu.x+c.y*Pu.y+c.z*Pu.z)/upm)%PlM;if(uo<0)uo+=PlM;obst[Math.min(NB-1,Math.floor(uo/PlM*NB))*NLAT+Math.floor((lat+3)/.1)]++}}
+   if(lat>-.45&&lat<.45){const hg=(wx*up.x+wy*up.y+wz*up.z-road)/upm;if(hg>-.5&&hg<.5){let u=((c.x*Pu.x+c.y*Pu.y+c.z*Pu.z)/upm)%PlM;if(u<0)u+=PlM;hist[Math.min(NB-1,Math.floor(u/PlM*NB))*50+Math.floor((hg+.5)*50)]++}}}
+  if(i%8)return;sum+=c.dot(Pu);n++;const wc=c.clone().add(O);
+  if(Math.abs(wc.clone().sub(P0).dot(RIGHT))<8*upm)hs.push((wc.dot(up)-road)/upm);});
+ hs.sort((a,b)=>a-b);return {sum,n,hs,fast:false}}
+// test hook: both scans on every loaded world, compared value for value ({id: {same, ms old / new, counts}})
+window.__scanCheck=()=>{const out={};for(const [id,set] of Object.entries(sets)){const W=set.W;if(!W)continue;const m=set[0],w=styleOf(id),ext=!!(w&&w.ext),NB=W.road.n,NLAT=60,road=P0.dot(up)-eye*upm;
+ const run=fast=>{const hist=new Uint32Array(NB*50),obst=new Uint32Array(NB*NLAT),t=performance.now(),r=scanWorld(m,ext,{O:W.O,Pu:W.Pu,PlM:W.road.len,road,NB,NLAT,hist,obst},fast);return {...r,hist,obst,ms:performance.now()-t}};
+ const a=run(false),b=run(true),eq=(x,y)=>{if(x.length!==y.length)return false;for(let i=0;i<x.length;i++)if(!Object.is(x[i],y[i]))return false;return true};
+ out[id]={same:b.fast&&Object.is(a.sum,b.sum)&&a.n===b.n&&eq(a.hs,b.hs)&&eq(a.hist,b.hist)&&eq(a.obst,b.obst),fastPath:b.fast,sum:[a.sum,b.sum],n:[a.n,b.n],hs:[a.hs.length,b.hs.length],hist:eq(a.hist,b.hist),obst:eq(a.obst,b.obst),hsEq:eq(a.hs,b.hs),msOld:+a.ms.toFixed(1),msNew:+b.ms.toFixed(1)}}
+ return out};
 async function makeSet(url,visible,id){                      // one splat, plus its loop copies sharing the same packed data
  const w=WORLDS&&id?styleOf(id):null,ext=w?!!w.ext:EXT;      // worlds: each world has its own precision, origin, period and copies
  // a hidden preload stays quiet. A failed download (the local server refuses connections under a burst) is retried.
@@ -497,18 +591,13 @@ async function makeSet(url,visible,id){                      // one splat, plus 
  const set=[m];
  if(w){const P=new THREE.Vector3(...w.period),Pl=P.length(),Pu=P.clone().normalize(),O=new THREE.Vector3(...w.origin),road=P0.dot(up)-eye*upm;
   // where the tile's content sits along the period (mean centre), and its height range near the road (for the reveal's top-to-bottom sweep)
-  let sum=0,n=0;const hs=[];
+  let sum=0,n=0;
   // road profile: the height of the ground along the tile's centre lane (0.9 m wide), in 25 cm steps, as a histogram per step
   const PlM=Pl/upm,NB=Math.max(8,Math.round(PlM/.25)),hist=new Uint32Array(NB*50);
   // obstacle map: splats 0.3 to 1.4 m above the road (stones, roots, trunks), in 10 cm cells out to 3 m each side
   const NLAT=60,obst=new Uint32Array(NB*NLAT);
-  m.splats.forEachSplat((i,c)=>{
-   {const wx=c.x+O.x,wy=c.y+O.y,wz=c.z+O.z,lat=((wx-P0.x)*RIGHT.x+(wy-P0.y)*RIGHT.y+(wz-P0.z)*RIGHT.z)/upm;
-    if(lat>-3&&lat<3){const ho=(wx*up.x+wy*up.y+wz*up.z-road)/upm;if(ho>.3&&ho<1.4){let uo=((c.x*Pu.x+c.y*Pu.y+c.z*Pu.z)/upm)%PlM;if(uo<0)uo+=PlM;obst[Math.min(NB-1,Math.floor(uo/PlM*NB))*NLAT+Math.floor((lat+3)/.1)]++}}
-    if(lat>-.45&&lat<.45){const hg=(wx*up.x+wy*up.y+wz*up.z-road)/upm;if(hg>-.5&&hg<.5){let u=((c.x*Pu.x+c.y*Pu.y+c.z*Pu.z)/upm)%PlM;if(u<0)u+=PlM;hist[Math.min(NB-1,Math.floor(u/PlM*NB))*50+Math.floor((hg+.5)*50)]++}}}
-   if(i%8)return;sum+=c.dot(Pu);n++;const wc=c.clone().add(O);
-   if(Math.abs(wc.clone().sub(P0).dot(RIGHT))<8*upm)hs.push((wc.dot(up)-road)/upm);});
-  hs.sort((a,b)=>a-b);const lo=hs[Math.floor(hs.length*.02)]||0,hi=hs[Math.floor(hs.length*.95)]||4;
+  const sc=scanWorld(m,ext,{O,Pu,PlM,road,NB,NLAT,hist,obst},PERF.scan);sum=sc.sum;n=sc.n;const hs=sc.hs;
+  const lo=hs[Math.floor(hs.length*.02)]||0,hi=hs[Math.floor(hs.length*.95)]||4;
   for(const k of w.copies){if(k===0)continue;const c=new SplatMesh(ext?{extSplats:m.extSplats}:{packedSplats:m.packedSplats});c.visible=visible;c.position.copy(O).addScaledVector(P,k);scene.add(c);set.push(c);}
   // each step's ground height = the 30th percentile of its histogram (below the grass and stones), smoothed around the loop, about its median
   const prof=new Float32Array(NB);let known=0;
@@ -546,7 +635,7 @@ let copySpeed=0,copyMoved=false;      // the bike's speed (m/s), set by the ride
 const COPY_FADE={hold:params.get('copyfade')==='0'?-1:(+params.get('copyhold')||300),ramp:300},fadingCopies=new Set();
 function updateWorldCopies(){if(!WORLDS)return;const cp=WORLDS?ridePos:camera.position,now=performance.now();
  for(const set of Object.values(sets)){const g=set.W;if(!g)continue;const M=set.length,kFar=g.kFar??=Math.max(...g.ks),n=g.n=Math.floor((_wp.copy(cp).sub(g.O).dot(g.Pu)-g.c0)/g.Pl)+1;   // camera between the centres of copies -1 and 0: the most road ahead
-  for(const k0 of g.ks){const k=n+k0,m=set[((k%M)+M)%M];_wp.copy(g.O).addScaledVector(g.P,k);if(!m.position.equals(_wp)){m.position.copy(_wp);if(COPY_FADE.hold>=0&&k0===kFar){m.opacity=0;m.userData.movedAt=now;m.userData.waitPick=false;m.userData.fadeAt=0;fadingCopies.add(m);copyMoved=true}}}}
+  for(const k0 of g.ks){const k=n+k0,m=set[((k%M)+M)%M];_wp.copy(g.O).addScaledVector(g.P,k);if(!m.position.equals(_wp)){m.position.copy(_wp);if(COPY_FADE.hold>=0&&k0===kFar){m.opacity=0;m.userData.movedAt=now;m.userData.waitPick=false;m.userData.fadeAt=0;m.userData.stepFade=true;fadingCopies.add(m);copyMoved=true}}}}
  // at speed the far copy is reached sooner, so the fade shortens with it (to half at 65 km/h and above); the wait before it
  // stays, because the copy's detail is only right once the next detail pick has come back (about 0.3 s)
  const fadeK=Math.max(.5,Math.min(1,9/Math.max(1,copySpeed)));
@@ -562,7 +651,8 @@ function updateWorldCopies(){if(!WORLDS)return;const cp=WORLDS?ridePos:camera.po
    else if(pa>=0&&now-d.movedAt<PICK_WAIT){m.opacity=0;continue}
    else{d.waitPick=false;if(pa>=0)d.fadeAt=now}}      // no pick in time (fade from now, not with a jump), or the worker sort is off
   const s0=Math.max(d.movedAt+COPY_FADE.hold,d.fadeAt||0),t=(now-s0)/(COPY_FADE.ramp*fadeK);
-  if(t>=1){m.opacity=1;fadingCopies.delete(m)}else m.opacity=Math.max(0,t)}}
+  // a copy moved to the far end fades in PERF.fadesteps steps (each opacity change regenerates every splat); roll-in copies smoothly
+  if(t>=1){m.opacity=1;fadingCopies.delete(m)}else m.opacity=PERF.fadesteps&&d.stepFade?Math.round(Math.max(0,t)*PERF.fadesteps)/PERF.fadesteps:Math.max(0,t)}}
 const PICK_WAIT=1200;
 const worldLane=id=>{const w=styleOf(id);return {l:w.lane_left_m,r:w.lane_right_m,yaw:w.yaw_deg};};
 const skyOf=id=>styleOf(id).sky?1:0;
@@ -583,7 +673,7 @@ if(wsky.on){const geo=new THREE.SphereGeometry(100,128,16,0,Math.PI*2,Math.PI/4,
  const mat=new THREE.ShaderMaterial({uniforms:{a:{value:null},b:{value:null},k:{value:0}},side:THREE.BackSide,depthTest:false,depthWrite:false,transparent:false,toneMapped:false,
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
   fragmentShader:'uniform sampler2D a;uniform sampler2D b;uniform float k;varying vec2 vUv;void main(){vec2 q=vec2(vUv.x,1.0-vUv.y);gl_FragColor=vec4(mix(texture2D(a,q).rgb,texture2D(b,q).rgb,k),1.0);\n#include <colorspace_fragment>\n}'});
- const m=wsky.mesh=new THREE.Mesh(geo,mat);m.quaternion.copy(basis);m.frustumCulled=false;m.visible=false;m.renderOrder=-10;m.onBeforeRender=(r,sc,cam)=>{m.position.copy(cam.position);m.updateMatrixWorld()};scene.add(m);
+ depthSky.push(mat);const m=wsky.mesh=new THREE.Mesh(geo,mat);m.quaternion.copy(basis);m.frustumCulled=false;m.visible=false;m.renderOrder=-10;m.onBeforeRender=(r,sc,cam)=>{m.position.copy(cam.position);m.updateMatrixWorld()};scene.add(m);
  // Each picture is 33 MB once decoded. Loaded as an <img>, it was decoded and sent to the graphics card inside the first
  // frame that drew it, which was the first frame of the first switch into that world. Now it is decoded off the main
  // thread (createImageBitmap) and sent to the card as soon as it has loaded, before any switch needs it. Both kinds of
@@ -711,7 +801,7 @@ function stepRoll(now){const t=transition,A=sets[t.from],N=sets[t.to],ga=A.W,gn=
  const B=t.B0-(now-t.start)/ROLL.step,kB=Math.ceil(B),near=gn.n+Math.min(...gn.ks),late=now-t.start>9000;let old=0,shown=0;
  // the new world: every copy from kB on
  for(const k0 of gn.ks){const k=gn.n+k0,m=N[((k%N.length)+N.length)%N.length],want=k>=kB||late;
-  if(want&&!m.visible){m.visible=true;m.opacity=0;m.userData.movedAt=now;m.userData.waitPick=true;m.userData.fadeAt=0;fadingCopies.add(m)}
+  if(want&&!m.visible){m.visible=true;m.opacity=0;m.userData.movedAt=now;m.userData.waitPick=true;m.userData.fadeAt=0;m.userData.stepFade=false;fadingCopies.add(m)}
   else if(!want&&m.visible){m.visible=false;m.opacity=1;fadingCopies.delete(m)}
   if(m.visible)shown++}
  // the old world: copies nearer than kB stay. One the new world has just taken over stays until the new copy has faded in
@@ -900,7 +990,7 @@ if(TRACK&&params.get('map')!=='0'){
 const PXC={on:params.get('physx')!=='0',slope:+params.get('pxslope')||.2,pad:+params.get('pxpad')||0,near:.9,far:+params.get('pxfar')||1.8,ahead:.42,radius:.42,friction:params.get('pxfric')!==null?+params.get('pxfric'):.05};
 let PX=null,pxKey='';
 if(WORLDS&&PXC.on)splatsInP.then(async()=>{for(let attempt=0;attempt<3;attempt++){
- try{const mod=await import('./fantasy-physx.js?v=1794980868'+(attempt?'&try='+attempt:''));PX=await mod.createPhysics({url:'./vendor/physx/'+(params.get('physx')==='missing'?'not-there.mjs':'physx-js-webidl.mjs')+(attempt?'?try='+attempt:''),friction:PXC.friction});window.__px=PX;console.log('physics: PhysX',(PX.version>>>24)+'.'+((PX.version>>>16)&255)+'.'+((PX.version>>>8)&255));return}
+ try{const mod=await import('./fantasy-physx.js?v=1795053801'+(attempt?'&try='+attempt:''));PX=await mod.createPhysics({url:'./vendor/physx/'+(params.get('physx')==='missing'?'not-there.mjs':'physx-js-webidl.mjs')+(attempt?'?try='+attempt:''),friction:PXC.friction});window.__px=PX;console.log('physics: PhysX',(PX.version>>>24)+'.'+((PX.version>>>16)&255)+'.'+((PX.version>>>8)&255));return}
  catch(e){console.warn('physics engine not loaded, attempt '+(attempt+1),e);await new Promise(r=>setTimeout(r,800*(attempt+1)))}}
  console.warn('physics engine unavailable: riding on the built-in model')});
 // Builds the walls for the world being ridden when they are missing or out of date; true when the engine is ready to step.
@@ -1086,7 +1176,18 @@ function tick(now,dtForce,noDraw){const dt=dtForce??Math.max(0,Math.min(.05,(now
  updateTail();updateLoopCopies();updateWorldCopies();
  $('hud').textContent=mode==='ride'&&LOOP?`endless loop · ${((LU?((s%W)+W)%W:s)*step/upm).toFixed(1)} of ${(TL/upm).toFixed(0)} m into this stretch · across ${x>=0?'+':''}${x.toFixed(1)} m (limit −${laneAt(C.lane_left_m,s).toFixed(1)} / +${laneAt(C.lane_right_m,s).toFixed(1)}) · height ${h.toFixed(1)} m`:mode==='free'&&LOOP?'free fly · endless loop':mode==='ride'?`along ${(Math.min(s,N-1)*step/upm+(s>N-1?(s-N+1)*step/upm:0)).toFixed(1)} of ${TAIL?'∞':(cfg.path_length/upm+endM).toFixed(0)} m${TAIL&&s>N-1?' (endless road)':''} · across ${x>=0?'+':''}${x.toFixed(1)} m (limit −${laneAt(C.lane_left_m,s).toFixed(1)} / +${laneAt(C.lane_right_m,s).toFixed(1)}) · height ${h.toFixed(1)} m`:'free fly';
  const away=mode==='free'&&!BOUND?offPath():0,w=$('warn');if(mode==='free'&&!BOUND&&away>C.half_width_m+.5){w.style.display='block';w.textContent='You are '+away.toFixed(1)+' m from the filmed path, outside the validated corridor (±'+C.half_width_m+' m); expect holes and smears.';}else w.style.display='none';
- if(!noDraw&&(dtForce!==undefined||!idleSkip()))renderAll();}
+ // the renderer may skip camera-only generates (PERF.gen) only while riding with the worker sort working out distances
+ spark.duneGenMoveMax=(PERF.gen&&mode==='ride'&&!opening&&playing===null&&!transition&&!busy&&spark.lodPosOverride&&spark.lodQuatOverride&&sortKeys&&sortKeys.live())?PERF.genMove*upm:0;
+ if(!noDraw&&(dtForce!==undefined||!idleSkip())){riderWarmFrame();renderAll();}}
+// Rider warm-up (PERF.riderwarm, ?riderwarm=0): once the bikes have loaded, one vehicle (then the arms) per drawn frame is
+// uploaded and compiled by fantasy-rider.js warmStep(), right before that frame's own draw clears the canvas. __riderWarm
+// holds the state (0 waiting for the bikes, 1 running, 2 done, 3 skipped), the steps and the milliseconds spent.
+const RWARM={state:0,steps:0,ms:0,worst:0};window.__riderWarm=RWARM;if(rider)rider.ready.then(()=>{if(RWARM.state===0)RWARM.state=1}).catch(()=>{});
+// A step can take 44 to 154 ms, so steps run only under the loading cover, on the opening screen or with the bike nearly
+// standing (the bikes can arrive after the cover's 8 s timeout, while riding); state stays 1 and it resumes when the bike slows.
+function riderWarmFrame(){if(RWARM.state!==1)return;if(mode==='ride'&&!opening&&Math.abs(bike.v)>.5)return;if(!PERF.riderwarm||!rider||typeof rider.warmStep!=='function'){RWARM.state=3;return}
+ const t=performance.now();let more=false;try{more=rider.warmStep()}catch(e){console.warn('rider warm-up stopped:',e);more=false}
+ const d=performance.now()-t;RWARM.ms+=d;RWARM.steps++;if(d>RWARM.worst)RWARM.worst=d;if(!more)RWARM.state=2}
 // Standing still. With the bike stopped the picture does not change, yet it was drawn 60 times a second, and stopped is the
 // dearest view there is (the nearest ground and walls at full detail: 44 ms of graphics card time measured against 24
 // riding). So while the view is exactly where it was at the last draw and nothing else is in motion (no world switch, no
